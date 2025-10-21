@@ -10,10 +10,11 @@ import SwiftUI
 
 @main
 struct AezakmiTestApp: App {
-    private let coreData = CoreDataStack(modelName: "DocumentsModel")
+    let persistenceController = PersistenceController.shared
+
     var body: some Scene {
         WindowGroup {
-            RootView().environment(\.managedObjectContext, coreData.viewContext)
+            RootView()
                
         }
     }

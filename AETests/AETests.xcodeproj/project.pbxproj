@@ -6,33 +6,20 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		A35FF2A32EA7D55F0000E890 /* DocumentsModel.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2A12EA7D55F0000E890 /* DocumentsModel.xcdatamodeld */; };
-		A35FF2A62EA7D7790000E890 /* CoreDataStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2A52EA7D7790000E890 /* CoreDataStack.swift */; };
-		A35FF2A92EA7DCC20000E890 /* DocumentEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2A82EA7DCC20000E890 /* DocumentEntity.swift */; };
-		A35FF2AB2EA7DCDD0000E890 /* DocumentEntity+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2AA2EA7DCD70000E890 /* DocumentEntity+CoreDataProperties.swift */; };
-		A35FF2AE2EA7DD3A0000E890 /* Document.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2AD2EA7DD3A0000E890 /* Document.swift */; };
-		A39406B02EA7894300ED4787 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A39406AB2EA7894300ED4787 /* Assets.xcassets */; };
-		A39406B22EA7894300ED4787 /* AezakmiTestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39406AA2EA7894300ED4787 /* AezakmiTestApp.swift */; };
-		A39406BB2EA789CD00ED4787 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39406B82EA789CD00ED4787 /* RootView.swift */; };
-		A39406C42EA78C3F00ED4787 /* Welcome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39406C22EA78C3F00ED4787 /* Welcome.swift */; };
-/* End PBXBuildFile section */
-
 /* Begin PBXFileReference section */
-		A35FF2A22EA7D55F0000E890 /* DocumentsModel.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = DocumentsModel.xcdatamodel; sourceTree = "<group>"; };
-		A35FF2A52EA7D7790000E890 /* CoreDataStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataStack.swift; sourceTree = "<group>"; };
-		A35FF2A82EA7DCC20000E890 /* DocumentEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentEntity.swift; sourceTree = "<group>"; };
-		A35FF2AA2EA7DCD70000E890 /* DocumentEntity+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DocumentEntity+CoreDataProperties.swift"; sourceTree = "<group>"; };
-		A35FF2AD2EA7DD3A0000E890 /* Document.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Document.swift; sourceTree = "<group>"; };
-		A39406922EA788FD00ED4787 /* AezakmiTest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AezakmiTest.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A39406AA2EA7894300ED4787 /* AezakmiTestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AezakmiTestApp.swift; sourceTree = "<group>"; };
-		A39406AB2EA7894300ED4787 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		A39406B82EA789CD00ED4787 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
-		A39406C22EA78C3F00ED4787 /* Welcome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Welcome.swift; sourceTree = "<group>"; };
+		A34BA74A2EA79B38002F038E /* AETests.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AETests.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		A34BA74C2EA79B38002F038E /* AETests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AETests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXFrameworksBuildPhase section */
-		A394068F2EA788FD00ED4787 /* Frameworks */ = {
+		A34BA7472EA79B38002F038E /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -42,213 +29,103 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		A35FF2A42EA7D7650000E890 /* Core */ = {
+		A34BA7412EA79B38002F038E = {
 			isa = PBXGroup;
 			children = (
-				A35FF2A72EA7DCA60000E890 /* Persistence */,
-			);
-			path = Core;
-			sourceTree = "<group>";
-		};
-		A35FF2A72EA7DCA60000E890 /* Persistence */ = {
-			isa = PBXGroup;
-			children = (
-				A35FF2A52EA7D7790000E890 /* CoreDataStack.swift */,
-				A35FF2A82EA7DCC20000E890 /* DocumentEntity.swift */,
-				A35FF2AA2EA7DCD70000E890 /* DocumentEntity+CoreDataProperties.swift */,
-			);
-			path = Persistence;
-			sourceTree = "<group>";
-		};
-		A35FF2AC2EA7DD2B0000E890 /* Domain */ = {
-			isa = PBXGroup;
-			children = (
-				A35FF2AD2EA7DD3A0000E890 /* Document.swift */,
-			);
-			path = Domain;
-			sourceTree = "<group>";
-		};
-		A39406892EA788FD00ED4787 = {
-			isa = PBXGroup;
-			children = (
-				A39406AE2EA7894300ED4787 /* AezakmiTest */,
-				A39406932EA788FD00ED4787 /* Products */,
+				A34BA74C2EA79B38002F038E /* AETests */,
+				A34BA74B2EA79B38002F038E /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		A39406932EA788FD00ED4787 /* Products */ = {
+		A34BA74B2EA79B38002F038E /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A39406922EA788FD00ED4787 /* AezakmiTest.app */,
+				A34BA74A2EA79B38002F038E /* AETests.app */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		A39406A72EA7894300ED4787 /* App */ = {
-			isa = PBXGroup;
-			children = (
-				A39406AA2EA7894300ED4787 /* AezakmiTestApp.swift */,
-			);
-			path = App;
-			sourceTree = "<group>";
-		};
-		A39406A82EA7894300ED4787 /* Presentation */ = {
-			isa = PBXGroup;
-			children = (
-				A39406BA2EA789CD00ED4787 /* Scenes */,
-			);
-			path = Presentation;
-			sourceTree = "<group>";
-		};
-		A39406AE2EA7894300ED4787 /* AezakmiTest */ = {
-			isa = PBXGroup;
-			children = (
-				A35FF2AC2EA7DD2B0000E890 /* Domain */,
-				A35FF2A42EA7D7650000E890 /* Core */,
-				A39406A72EA7894300ED4787 /* App */,
-				A39406A82EA7894300ED4787 /* Presentation */,
-				A39406AB2EA7894300ED4787 /* Assets.xcassets */,
-				A35FF2A12EA7D55F0000E890 /* DocumentsModel.xcdatamodeld */,
-			);
-			path = AezakmiTest;
-			sourceTree = "<group>";
-		};
-		A39406B92EA789CD00ED4787 /* RootView */ = {
-			isa = PBXGroup;
-			children = (
-				A39406B82EA789CD00ED4787 /* RootView.swift */,
-			);
-			path = RootView;
-			sourceTree = "<group>";
-		};
-		A39406BA2EA789CD00ED4787 /* Scenes */ = {
-			isa = PBXGroup;
-			children = (
-				A39406C72EA78F2000ED4787 /* Reader */,
-				A39406C52EA78C3F00ED4787 /* Library */,
-				A39406C62EA78C3F00ED4787 /* Editor */,
-				A39406C32EA78C3F00ED4787 /* Welcome */,
-				A39406B92EA789CD00ED4787 /* RootView */,
-			);
-			path = Scenes;
-			sourceTree = "<group>";
-		};
-		A39406C32EA78C3F00ED4787 /* Welcome */ = {
-			isa = PBXGroup;
-			children = (
-				A39406C22EA78C3F00ED4787 /* Welcome.swift */,
-			);
-			path = Welcome;
-			sourceTree = "<group>";
-		};
-		A39406C52EA78C3F00ED4787 /* Library */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Library;
-			sourceTree = "<group>";
-		};
-		A39406C62EA78C3F00ED4787 /* Editor */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Editor;
-			sourceTree = "<group>";
-		};
-		A39406C72EA78F2000ED4787 /* Reader */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Reader;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A39406912EA788FD00ED4787 /* AezakmiTest */ = {
+		A34BA7492EA79B38002F038E /* AETests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A39406A22EA788FF00ED4787 /* Build configuration list for PBXNativeTarget "AezakmiTest" */;
+			buildConfigurationList = A34BA7552EA79B3A002F038E /* Build configuration list for PBXNativeTarget "AETests" */;
 			buildPhases = (
-				A394068E2EA788FD00ED4787 /* Sources */,
-				A394068F2EA788FD00ED4787 /* Frameworks */,
-				A39406902EA788FD00ED4787 /* Resources */,
+				A34BA7462EA79B38002F038E /* Sources */,
+				A34BA7472EA79B38002F038E /* Frameworks */,
+				A34BA7482EA79B38002F038E /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			name = AezakmiTest;
+			fileSystemSynchronizedGroups = (
+				A34BA74C2EA79B38002F038E /* AETests */,
+			);
+			name = AETests;
 			packageProductDependencies = (
 			);
-			productName = AezakmiTest;
-			productReference = A39406922EA788FD00ED4787 /* AezakmiTest.app */;
+			productName = AETests;
+			productReference = A34BA74A2EA79B38002F038E /* AETests.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		A394068A2EA788FD00ED4787 /* Project object */ = {
+		A34BA7422EA79B38002F038E /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
-					A39406912EA788FD00ED4787 = {
+					A34BA7492EA79B38002F038E = {
 						CreatedOnToolsVersion = 26.0;
 					};
 				};
 			};
-			buildConfigurationList = A394068D2EA788FD00ED4787 /* Build configuration list for PBXProject "AezakmiTest" */;
+			buildConfigurationList = A34BA7452EA79B38002F038E /* Build configuration list for PBXProject "AETests" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
 			);
-			mainGroup = A39406892EA788FD00ED4787;
+			mainGroup = A34BA7412EA79B38002F038E;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
-			productRefGroup = A39406932EA788FD00ED4787 /* Products */;
+			productRefGroup = A34BA74B2EA79B38002F038E /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A39406912EA788FD00ED4787 /* AezakmiTest */,
+				A34BA7492EA79B38002F038E /* AETests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		A39406902EA788FD00ED4787 /* Resources */ = {
+		A34BA7482EA79B38002F038E /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A39406B02EA7894300ED4787 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A394068E2EA788FD00ED4787 /* Sources */ = {
+		A34BA7462EA79B38002F038E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A35FF2AE2EA7DD3A0000E890 /* Document.swift in Sources */,
-				A35FF2A62EA7D7790000E890 /* CoreDataStack.swift in Sources */,
-				A39406BB2EA789CD00ED4787 /* RootView.swift in Sources */,
-				A39406C42EA78C3F00ED4787 /* Welcome.swift in Sources */,
-				A35FF2A92EA7DCC20000E890 /* DocumentEntity.swift in Sources */,
-				A35FF2AB2EA7DCDD0000E890 /* DocumentEntity+CoreDataProperties.swift in Sources */,
-				A35FF2A32EA7D55F0000E890 /* DocumentsModel.xcdatamodeld in Sources */,
-				A39406B22EA7894300ED4787 /* AezakmiTestApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		A39406A02EA788FF00ED4787 /* Debug */ = {
+		A34BA7532EA79B3A002F038E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -312,7 +189,7 @@
 			};
 			name = Debug;
 		};
-		A39406A12EA788FF00ED4787 /* Release */ = {
+		A34BA7542EA79B3A002F038E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -369,7 +246,7 @@
 			};
 			name = Release;
 		};
-		A39406A32EA788FF00ED4787 /* Debug */ = {
+		A34BA7562EA79B3A002F038E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -389,7 +266,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = niiazkhasanov.AezakmiTest;
+				PRODUCT_BUNDLE_IDENTIFIER = niiazkhasanov.AETests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -401,7 +278,7 @@
 			};
 			name = Debug;
 		};
-		A39406A42EA788FF00ED4787 /* Release */ = {
+		A34BA7572EA79B3A002F038E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -421,7 +298,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = niiazkhasanov.AezakmiTest;
+				PRODUCT_BUNDLE_IDENTIFIER = niiazkhasanov.AETests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -436,38 +313,25 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A394068D2EA788FD00ED4787 /* Build configuration list for PBXProject "AezakmiTest" */ = {
+		A34BA7452EA79B38002F038E /* Build configuration list for PBXProject "AETests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A39406A02EA788FF00ED4787 /* Debug */,
-				A39406A12EA788FF00ED4787 /* Release */,
+				A34BA7532EA79B3A002F038E /* Debug */,
+				A34BA7542EA79B3A002F038E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A39406A22EA788FF00ED4787 /* Build configuration list for PBXNativeTarget "AezakmiTest" */ = {
+		A34BA7552EA79B3A002F038E /* Build configuration list for PBXNativeTarget "AETests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A39406A32EA788FF00ED4787 /* Debug */,
-				A39406A42EA788FF00ED4787 /* Release */,
+				A34BA7562EA79B3A002F038E /* Debug */,
+				A34BA7572EA79B3A002F038E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCVersionGroup section */
-		A35FF2A12EA7D55F0000E890 /* DocumentsModel.xcdatamodeld */ = {
-			isa = XCVersionGroup;
-			children = (
-				A35FF2A22EA7D55F0000E890 /* DocumentsModel.xcdatamodel */,
-			);
-			currentVersion = A35FF2A22EA7D55F0000E890 /* DocumentsModel.xcdatamodel */;
-			path = DocumentsModel.xcdatamodeld;
-			sourceTree = "<group>";
-			versionGroupType = wrapper.xcdatamodel;
-		};
-/* End XCVersionGroup section */
 	};
-	rootObject = A394068A2EA788FD00ED4787 /* Project object */;
+	rootObject = A34BA7422EA79B38002F038E /* Project object */;
 }
