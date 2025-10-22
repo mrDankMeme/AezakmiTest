@@ -23,6 +23,9 @@ final class ReaderViewModel : ObservableObject {
         self.pdf = pdf
     }
     
+    func canDeleteCurrentPage() -> Bool {
+        document.pageCount > 1 // не даю ему удалить последнюю старницу, потому что не хочу получить пустой документ
+    }
     func deleteCurrentPage() {
         do {
             let newURL = try pdf.removePage(at: currentPageIndex, in: document.fileURL)

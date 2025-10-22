@@ -100,8 +100,8 @@ private extension DocumentRepositoryImpl {
         let e = DocumentEntity(context: context)
         e.id = UUID()
         e.name = suggestedName
-        e.createdAt = Date()
         e.fileURL = url.absoluteString
+        e.createdAt = Date()
         e.pageCount = Int16(pdf.pageCount(of: url))
         if let thumb = try? pdf.thumbNail(for: url, page: 0, size: CGSize(width: 160, height: 200)) {
             e.thumbnail = thumb.pngData()

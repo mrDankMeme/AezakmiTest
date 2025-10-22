@@ -1,0 +1,1101 @@
+//
+//  DocumentEntity.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+
+import Foundation
+import CoreData
+
+@objc(DocumentEntity)
+public class DocumentEntity: NSManagedObject {}
+//
+//  CoreDataStack.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import CoreData
+
+final class CoreDataStack {
+    let container: NSPersistentContainer
+    init(modelName:String = "DocumentsModel") {
+        container = NSPersistentContainer(name: modelName)
+        container.loadPersistentStores { _, error in
+            if let err = error {
+                fatalError("❌ CoreData load error \(err)")
+            }
+        }
+        container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+    }
+    var viewContext: NSManagedObjectContext {
+        container.viewContext
+    }
+}
+//
+//  DocumentEntity+CoreDataProperties.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+
+import Foundation
+import CoreData
+
+extension DocumentEntity {
+
+    @nonobjc public class func fetchRequest() -> NSFetchRequest<DocumentEntity> {
+        return NSFetchRequest<DocumentEntity>(entityName: "DocumentEntity")
+    }
+
+    @NSManaged public var id: UUID
+    @NSManaged public var name: String
+    @NSManaged public var fileURL: String
+    @NSManaged public var createdAt: Date
+    @NSManaged public var pageCount: Int16
+    @NSManaged public var thumbnail: Data?
+}
+
+extension DocumentEntity : Identifiable {}
+//
+//  CompositionRoot.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import Foundation
+import CoreData
+
+@MainActor
+final class CompositionRoot {
+    static let shared = CompositionRoot()
+    
+    let coreData = CoreDataStack(modelName: "DocumentsModel")
+    let fileStore : FileStoreProtocol = FileStore()
+    let pdf : PDFServiceProtocol = PDFService()
+    
+    lazy var documentRepository: DocumentRepositoryProtocol = {
+        DocumentRepositoryImpl(
+            context: coreData.viewContext,
+            fileStore: fileStore,
+            pdf: pdf
+        )
+    }()
+    
+    private init() {}
+    
+}
+//
+//  AezakmiTestApp.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import SwiftUI
+
+
+@main
+struct AezakmiTestApp: App {
+    
+    @MainActor private let root = CompositionRoot.shared
+    
+    var body: some Scene {
+        WindowGroup {
+            RootView()
+                .environment(\.managedObjectContext, root.coreData.viewContext)
+                .environment(\.documentRepository, root.documentRepository)
+                .environment(\.pdfService, root.pdf)
+        }
+    }
+}
+//
+//  DocumentRepositoryKey.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+
+private struct DocumentRepositoryKey: SwiftUI.EnvironmentKey {
+    static let defaultValue: DocumentRepositoryProtocol = {
+        CompositionRoot.shared.documentRepository
+    }()
+    
+}
+
+extension EnvironmentValues {
+    var documentRepository: DocumentRepositoryProtocol {
+        get {
+            self[DocumentRepositoryKey.self]
+        } set {
+            self[DocumentRepositoryKey.self] = newValue
+        }
+    }
+}
+//
+//  PDFServiceKey.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+
+private struct PDFServiceKey: SwiftUI.EnvironmentKey {
+    static let defaultValue: PDFServiceProtocol = {
+        CompositionRoot.shared.pdf
+    }()
+}
+
+extension EnvironmentValues {
+    var pdfService: PDFServiceProtocol {
+        get {
+            self[PDFServiceKey.self]
+        } set {
+            self[PDFServiceKey.self] = newValue
+        }
+    }
+}
+//
+//  PDFService.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import Foundation
+import UIKit
+import PDFKit
+
+public struct PDFService : PDFServiceProtocol {
+    public init() {
+        
+    }
+    
+    public func createPDF(from images: [UIImage], suggestedName: String?) throws -> URL {
+     
+        guard !images.isEmpty else {
+            throw makeError("no images to render")
+        }
+      
+        let fileStore = FileStore()
+        let dst = try fileStore.uniquePDFURL(suggestedName: suggestedName)
+       
+        // A4 @72dpi
+        let pageRect : CGRect = CGRect(x: 0, y: 0, width: 595, height: 842)
+        let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
+        
+        let data = renderer.pdfData { ctx in
+            for img in images {
+                ctx.beginPage()
+                let rect = aspectFitRect(imageSize: img.size, in: pageRect)
+                img.draw(in: rect.integral)
+            }
+            
+        }
+        
+        try data.write(to: dst, options: .atomic)
+        
+        return dst
+    }
+    
+    // Копируем существующий PDF в песочницу (Documents/)
+    public func importPDF(from url: URL) throws -> URL {
+        try FileStore().copyToSandbox(fileAt: url, suggestedName: url.deletingLastPathComponent().lastPathComponent )
+    }
+    
+    // Миниатюра первой (или заданной) страницы
+    public func thumbNail(for pdfUrl: URL, page: Int, size: CGSize) throws -> UIImage {
+        guard let doc = PDFDocument(url: pdfUrl) else {
+            throw makeError("Cannot open PDF")
+        }
+        guard let p = doc.page(at: page) else {
+            throw makeError("Page out of range")
+        }
+        
+        return p.thumbnail(of: size, for: .cropBox)
+    }
+  
+    //Удаление страницы и пересохранение в новый файл
+    public func removePage(at index: Int, in PDFurl: URL) throws -> URL {
+        guard let doc = PDFDocument(url: PDFurl) else {
+        throw makeError("Cannot open PDF")
+        }
+        guard index>=0, index<doc.pageCount else {
+            throw makeError("Page out of range")
+        }
+        
+        doc.removePage(at: index)
+        
+        let outURL = try FileStore().uniquePDFURL(suggestedName: PDFurl.deletingPathExtension().lastPathComponent   )
+        try write(doc: doc, to: outURL)
+        return outURL
+    }
+ 
+    //Обьединение нескольких PDF в один (пока только зачаток)
+    public func merge(docs urls: [URL], suggestedName: String?) throws -> URL {
+        let out = PDFDocument()
+        var cursor = 0
+        
+        for url in urls {
+            guard let d = PDFDocument(url: url) else {
+                continue
+            }
+            for i in 0..<d.pageCount {
+                if let page = d.page(at: i) {
+                    out.insert(page, at: cursor)
+                    cursor += 1
+                }
+            }
+                    
+        }
+        let outURL = try FileStore().uniquePDFURL(suggestedName: suggestedName ?? "Merged")
+        try write(doc: out, to: outURL)
+        return outURL
+        
+    }
+    
+    public func pageCount(of pdfURL: URL) -> Int {
+        return PDFDocument(url: pdfURL)?.pageCount ?? 0
+    }
+}
+
+//MARK: - Helpers
+private extension PDFService {
+    private func write(doc: PDFDocument, to url: URL) throws {
+          guard doc.write(to: url) else {
+              throw makeError("Failed to write PDF")
+          }
+      }
+    func aspectFitRect(imageSize: CGSize, in bounds: CGRect) -> CGRect {
+        guard imageSize.width > 0, imageSize.height > 0 else { return bounds }
+        let scale = min(bounds.width / imageSize.width, bounds.height / imageSize.height)
+        let w = imageSize.width * scale
+        let h = imageSize.height * scale
+        let x = bounds.minX + (bounds.width - w) / 2
+        let y = bounds.minY + (bounds.height - h) / 2
+        return CGRect(x: x, y: y, width: w, height: h)
+    }
+    
+    func makeError(_ msg: String) -> NSError {
+        NSError(domain: "PDFService", code: 1, userInfo: [NSLocalizedDescriptionKey: msg])
+    }
+}
+//
+//  DocumentRepositoryImpl.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import Foundation
+import CoreData
+import Combine
+import UIKit
+import PDFKit
+
+final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
+    
+    private let context: NSManagedObjectContext
+    private let fileStore: FileStoreProtocol
+    private let pdf: PDFServiceProtocol
+    
+    private let subject = CurrentValueSubject<[Document], Never>([])
+    init(context: NSManagedObjectContext, fileStore: FileStoreProtocol, pdf: PDFServiceProtocol) {
+        self.context = context
+        self.fileStore = fileStore
+        self.pdf = pdf
+    }
+    
+    func list() -> AnyPublisher<[Document], Never> {
+        subject.eraseToAnyPublisher()
+    }
+    
+    func createFromImages(_ images: [UIImage], name: String?) throws -> Document {
+        let url = try pdf.createPDF(from: images, suggestedName: name)
+        return try persist(url: url, suggestedName: name ?? "Document")
+        
+    }
+    
+    func importFile(_ url: URL) throws -> Document {
+        let dst = try pdf.importPDF(from: url)
+        return try persist(url: dst, suggestedName: url.deletingPathExtension().lastPathComponent)
+    }
+    
+    // MARK: - Ops
+    
+    func delete(id: UUID) throws {
+        let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "id = %@", id as CVarArg)
+        
+        if let obj = try context.fetch(req).first {
+            let s = obj.fileURL
+            if let url = URL(string: s) {
+                try fileStore.removeFile(at: url)
+            }
+            context.delete(obj)
+            try context.save()
+            reload()
+        }
+    }
+    
+    func shareURL(for id: UUID) throws -> URL {
+        let req : NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "id = %@", id as CVarArg)
+        
+        guard let obj = try context.fetch(req).first,
+              let url = URL(string: obj.fileURL) else {
+            throw NSError(domain: "Repo", code: 404, userInfo: [NSLocalizedDescriptionKey: "Not found"])
+        }
+        return url
+    }
+    
+    func merge(_ a: UUID, _ b: UUID, name: String?) throws -> Document {
+        let urls = try [a,b].map{
+            try shareURL(for:$0)
+        }
+       let out = try pdf.merge(docs: urls, suggestedName: name)
+        return try persist(url: out, suggestedName: name ?? "Merged")
+        
+        
+    }
+    
+    func updateThumbnailIfNeeded(for id: UUID) throws {
+        let req : NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "id = %@", id as CVarArg)
+        guard let obj = try context.fetch(req).first,
+              let url = URL(string: obj.fileURL) else {
+                 return
+              }
+        if obj.thumbnail == nil {
+            let img = try pdf.thumbNail(for: url, page: 0, size: CGSize(width: 160 , height: 200))
+            obj.thumbnail = img.pngData()
+            try context.save()
+            reload()
+        }
+    }
+}
+
+// MARK: - Helpers
+private extension DocumentRepositoryImpl {
+    @discardableResult
+    private func persist(url: URL, suggestedName:String) throws -> Document {
+        let e = DocumentEntity(context: context)
+        e.id = UUID()
+        e.name = suggestedName
+        e.createdAt = Date()
+        e.fileURL = url.absoluteString
+        e.pageCount = Int16(pdf.pageCount(of: url))
+        if let thumb = try? pdf.thumbNail(for: url, page: 0, size: CGSize(width: 160, height: 200)) {
+            e.thumbnail = thumb.pngData()
+        }
+        try context.save()
+        reload()
+        return map(e)
+    }
+    private func reload() {
+        let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
+        req.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        let objects = (try? context.fetch(req)) ?? []
+        
+        subject.send(objects.map(map))
+    }
+    
+    func map(_ e: DocumentEntity) -> Document {
+        let url = URL(string: e.fileURL) ?? URL(fileURLWithPath: "/dev/null")
+        let img = e.thumbnail.flatMap(UIImage.init(data:))
+        return Document(id: e.id,
+                        name: e.name,
+                        fileURL: url,
+                        createdAt: e.createdAt,
+                        pageCount: Int(e.pageCount),
+                        thumbNail: img)
+    }
+}
+//
+//  FileStore.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import Foundation
+
+public class FileStore: FileStoreProtocol {
+   
+    
+    public init() {
+        
+    }
+    
+    public func documentsDir() throws -> URL {
+        try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+    }
+    
+    public func uniquePDFURL(suggestedName: String?) throws -> URL {
+        let base = (suggestedName?.isEmpty == false ? suggestedName! : "Document")
+                   .replacingOccurrences(of: " ", with: "_")
+               let stamp = ISO8601DateFormatter().string(from: Date())
+               return try documentsDir().appendingPathComponent("\(base)_\(stamp).pdf")
+    }
+    
+    public func copyToSandbox(fileAt url: URL, suggestedName: String?) throws -> URL {
+        let suggested = suggestedName ?? url.deletingPathExtension().lastPathComponent
+              let dst = try uniquePDFURL(suggestedName: suggested)
+              try FileManager.default.copyItem(at: url, to: dst)
+              return dst
+    }
+    
+    public func removeFile(at url: URL) throws {
+        if FileManager.default.fileExists(atPath: url.path) {
+                   try FileManager.default.removeItem(at: url)
+               }
+    }
+
+    
+}
+//
+//  DocumentRepositoryProtocol.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import Foundation
+import Combine
+import UIKit
+
+public protocol DocumentRepositoryProtocol {
+    //чтение
+    func list() -> AnyPublisher<[Document],Never>
+    
+    //создание/импорт
+    func createFromImages(_ images: [UIImage], name: String?) throws -> Document
+    func importFile(_ url: URL) throws -> Document
+    
+    //операции
+    func delete(id: UUID) throws
+    func shareURL(for id: UUID) throws -> URL
+    
+    //пригодится позже
+    func merge(_ a: UUID, _ b: UUID, name: String?) throws -> Document
+    func updateThumbnailIfNeeded(for id: UUID) throws
+    
+}
+//
+//  FileStoreProtocol.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import Foundation
+
+public protocol FileStoreProtocol {
+    func documentsDir() throws -> URL
+    func uniquePDFURL(suggestedName: String?) throws -> URL
+    func copyToSandbox(fileAt: URL, suggestedName: String?) throws -> URL
+    func removeFile(at url: URL) throws
+}
+
+//
+//  PDFStoreProtocol.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import Foundation
+import UIKit
+
+public protocol PDFServiceProtocol {
+    func createPDF(from images: [UIImage], suggestedName: String?) throws -> URL
+    func importPDF(from url: URL) throws -> URL
+    func thumbNail(for pdfUrl: URL, page: Int, size: CGSize) throws -> UIImage
+    func removePage(at: Int, in PDFurl: URL) throws -> URL
+    func merge(docs urls: [URL], suggestedName: String?) throws -> URL
+    func pageCount(of pdfURL: URL) -> Int
+}
+//
+//  Document.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import Foundation
+import UIKit
+
+public struct Document: Identifiable, Hashable {
+    public let id: UUID
+    public var name: String
+    public var fileURL: URL
+    public var createdAt: Date
+    public var pageCount: Int
+    public var thumbNail: UIImage?
+    
+    public init(id: UUID, name: String, fileURL: URL, createdAt: Date, pageCount: Int, thumbNail: UIImage? = nil) {
+        self.id = id
+        self.name = name
+        self.fileURL = fileURL
+        self.createdAt = createdAt
+        self.pageCount = pageCount
+        self.thumbNail = thumbNail
+    }
+    
+}
+//
+//  PDFKitView.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+import PDFKit
+
+struct PDFKitView: UIViewRepresentable {
+    let url: URL
+    @Binding var currentPageIndex: Int
+    
+    func makeUIView(context: Context) -> PDFView {
+        let v = PDFView()
+        v.autoScales = true
+        v.displayMode = .singlePageContinuous
+        v.delegate = context.coordinator
+        v.document = PDFDocument(url: url)
+        return v
+    }
+   
+    func updateUIView(_ uiView: PDFView, context: Context) {
+        if uiView.document?.documentURL != url {
+            uiView.document = PDFDocument(url: url)
+        }
+    }
+  
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    final class Coordinator:NSObject, PDFViewDelegate {
+        let parent: PDFKitView
+        init(_ parent: PDFKitView) {
+            self.parent = parent
+        }
+        
+        
+        func pdfViewPageChanged(_ sender: PDFView) {
+            if let page = sender.currentPage,
+                let doc = sender.document {
+                    parent.currentPageIndex = doc.index(for: page)
+            }
+        }
+    }
+}
+
+//
+//  ReaderView.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+
+struct ReaderView: View {
+    @Environment(\.documentRepository) private var repo
+    @Environment(\.pdfService) private var pdf
+    
+    @StateObject var vm: ReaderViewModel
+    @State var showShare: Bool = false
+    @State var showCantDeleteAlert: Bool = false
+ 
+    var body: some View {
+        VStack {
+            PDFKitView(url: vm.document.fileURL, currentPageIndex: $vm.currentPageIndex)
+        }
+        .navigationTitle(vm.document.name)
+        .toolbar {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button("Удалить страницу") {
+                    if vm.canDeleteCurrentPage() {
+                        vm.deleteCurrentPage()
+                    } else {
+                        showCantDeleteAlert = true
+                    }
+                }
+                Button("Поделиться") {
+                    showShare = true
+                }
+                
+            }
+        }
+        .alert("Нельзя удалить страницу", isPresented: $showCantDeleteAlert) {
+            Button("Ok", role: .cancel) {
+                
+            }
+        }
+        .sheet(isPresented: $showShare) {
+            if let url = vm.shareURL() {
+                ShareSheet(activityItems: [url])
+            }
+            
+        }
+    }
+}
+
+
+//
+//  ReaderViewModel.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import Foundation
+import Combine
+
+final class ReaderViewModel : ObservableObject {
+    @Published private(set) var document: Document
+    @Published var currentPageIndex: Int = 0
+    
+    private let repo: DocumentRepositoryProtocol
+    private let pdf: PDFServiceProtocol
+    
+    init(document: Document,
+         repo: DocumentRepositoryProtocol,
+         pdf: PDFServiceProtocol) {
+        self.document = document
+        self.repo = repo
+        self.pdf = pdf
+    }
+    
+    func canDeleteCurrentPage() -> Bool {
+        document.pageCount > 1 // не даю ему удалить последнюю старницу, потому что не хочу получить пустой документ
+    }
+    func deleteCurrentPage() {
+        do {
+            let newURL = try pdf.removePage(at: currentPageIndex, in: document.fileURL)
+            document.fileURL = newURL
+            document.pageCount = pdf.pageCount(of: newURL)
+            try repo.updateThumbnailIfNeeded(for: document.id)
+        } catch {
+            print("Delete page error: \(error)")
+        }
+    }
+    
+    func shareURL() -> URL? {
+        try? repo.shareURL(for: document.id)
+    }
+}
+
+//
+//  ReaderContainer.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+
+struct ReaderContainer: View {
+    @Environment(\.documentRepository) private var repo
+    @Environment(\.pdfService) private var pdf
+    
+    let document: Document
+    
+    var body: some View {
+        ReaderView(vm: ReaderViewModel(document: document, repo: repo, pdf: pdf))
+    }
+}
+//
+//  ContentView.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import SwiftUI
+
+struct RootView: View {
+    var body: some View {
+        NavigationView {
+           WelcomeView()
+        }
+    }
+}
+
+//
+//  LibraryViewModel.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import Foundation
+import Combine
+
+final class LibraryViewModel: ObservableObject {
+    @Published var docs: [Document] = []
+    private var bag = Set<AnyCancellable>()
+    private var repo: DocumentRepositoryProtocol
+    
+    init(repo: DocumentRepositoryProtocol) {
+        self.repo = repo
+        repo.list()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                self?.docs = $0
+            }
+            .store(in: &bag)
+    }
+    
+    func delete(_ id: UUID) { try? repo.delete(id: id)}
+    func shareURL(_ id: UUID) -> URL? { try? repo.shareURL(for: id)}
+}
+//
+//  LibraryView.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+
+struct LibraryView: View {
+    
+    @StateObject var vm: LibraryViewModel
+    @State private var shareURL: URL?
+    @State private var showShare: Bool = false
+    
+    var body: some View {
+        List {
+            if vm.docs.isEmpty {
+                Section("Пока пусто") {
+                    Text("Создай PDF в Editor")
+                        .foregroundColor(.secondary)
+                }
+            } else {
+                ForEach(vm.docs) { doc in
+                    HStack {
+                        if let img = doc.thumbNail {
+                            Image(uiImage: img)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 40,
+                                       height: 52)
+                                .clipped()
+                                .cornerRadius(6)
+                        } else {
+                            Rectangle()
+                                .fill(Color.secondary.opacity(0.2))
+                                .frame(width: 40, height: 52)
+                                .cornerRadius(6)
+                        }
+                        VStack(alignment: .leading) {
+                            Text(doc.name).font(.headline)
+                            Text("\(doc.createdAt.formatted(date: .abbreviated, time: .shortened))")
+                                .foregroundColor(.secondary)
+                                .font(.subheadline)
+                        }
+                        Spacer()
+                    }
+                    .contextMenu {
+                        Button("Поделиться") {
+                            if let url = vm.shareURL(doc.id) {
+                                //TODO: present share
+                            }
+                        }
+                        Button("Удалить", role: .destructive) {
+                            vm.delete(doc.id)
+                        }
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Library")
+        .sheet(isPresented: $showShare) {
+            if let url = shareURL {
+                ShareSheet(activityItems: [url])
+            }
+        }
+    }
+    
+}
+
+private extension LibraryItem {
+    func presentShare(_ url: URL) {
+        let av = UIActivityViewController(activityItems: [url], applicationActivities: nil
+        )
+        UIApplication.shared.windows.first?.rootViewController?.present(av, animated: true)
+    }
+}
+//
+//  Welcome.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import SwiftUI
+
+struct WelcomeView: View {
+    @Environment(\.documentRepository) private var repo
+    @Environment(\.pdfService) private var pdf
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("PDF Maker")
+                .font(.largeTitle).bold()
+            Text("Импортируй фото/файлы → конвертируй в PDF → читай, удаляй страницы, делись.")
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+            NavigationLink("Перейти в Editor") {
+                EditorView(vm: EditorViewModel(repo: repo))
+            }
+            .buttonStyle(.borderedProminent)
+            NavigationLink("Перейти в Library") {
+                LibraryView(vm: LibraryViewModel(repo: repo))
+            }
+        }
+        
+        
+    }
+}
+
+
+
+//
+//  EditorViewModel.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import UIKit
+import Combine
+
+final class EditorViewModel: ObservableObject {
+    @Published var pickedImages: [UIImage] = []
+    @Published var importedFileURL: URL?
+    @Published var createdDocument: Document?
+    
+    private let repo: DocumentRepositoryProtocol
+ 
+    init(repo: DocumentRepositoryProtocol) {
+        self.repo = repo
+    }
+    func createPDF(name: String?) {
+        do {
+            if !pickedImages.isEmpty {
+                createdDocument = try repo.createFromImages(pickedImages, name: name)
+            } else if let url = importedFileURL {
+                createdDocument = try repo.importFile(url)
+            }
+        } catch {
+            print("Create PDF error: \(error)")
+        }
+    }
+}
+//
+//  EditorView.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+import UniformTypeIdentifiers
+
+struct EditorView: View {
+    @StateObject var vm: EditorViewModel
+    
+    @State private var name: String = ""
+    @State private var showPhotoPicker: Bool = false
+    @State private var showFilePicker: Bool = false
+    @State private var openReader: Bool = false
+
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            TextField("Название документа.", text: $name)
+                .textFieldStyle(.roundedBorder)
+            HStack {
+                Button("Выбрать из фото.") {
+                    showPhotoPicker = true
+                }
+                Button("Импорт из файлов.") {
+                    showFilePicker = true
+                }
+            }
+            if !vm.pickedImages.isEmpty {
+                Text("Выбрано изображений \(vm.pickedImages.count)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else if let url = vm.importedFileURL {
+                Text("Файл: \(url.lastPathComponent)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else {
+                Text("Ничего не выбрано.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            
+            Button("Сконвертировать / Сохранить") {
+                vm.createPDF(name: name.isEmpty ? nil : name)
+                openReader = true
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(vm.pickedImages.isEmpty && vm.importedFileURL == nil)
+            Spacer()
+            
+        }
+        .padding()
+        .navigationTitle("Editor")
+        .sheet(isPresented: $showPhotoPicker) {
+            PhotoPicker(images: $vm.pickedImages)
+        }
+        .sheet(isPresented: $showFilePicker) {
+            FilePicker(supportedTypes: [.pdf, .image], pickedURL: $vm.importedFileURL)
+        }
+        .background(
+            NavigationLink(isActive: $openReader) {
+                if let doc = vm.createdDocument {
+                    ReaderContainer(document: doc)
+                } else {
+                    EmptyView()
+                }
+            } label: {
+                EmptyView()
+            }
+        )
+    }
+}
+//
+//  FilePicker.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+import UniformTypeIdentifiers
+
+
+struct FilePicker: UIViewControllerRepresentable {
+    let supportedTypes: [UTType]
+ 
+    @Binding var pickedURL: URL?
+    
+    func makeUIViewController(context: Context) -> some UIViewController {
+        let vc = UIDocumentPickerViewController(forOpeningContentTypes: supportedTypes, asCopy: true)
+        vc.delegate = context.coordinator
+        return vc
+    }
+  
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+  
+    func updateUIViewController(_ uiViewController: UIViewControllerType, context: Context) {
+        
+    }
+  
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let parent: FilePicker
+        init(_ parent: FilePicker) {
+            self.parent = parent
+        }
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            parent.pickedURL = urls.first
+        }
+    }
+    
+}
+//
+//  PhotoPicker.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+import PhotosUI
+
+struct PhotoPicker: UIViewControllerRepresentable {
+   
+    @Binding var images: [UIImage]
+    
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration(photoLibrary: .shared())
+        config.selectionLimit = 0
+        config.filter = .images
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+  
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {
+        
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    final class Coordinator:NSObject,PHPickerViewControllerDelegate{
+        let parent: PhotoPicker
+     
+        init(_ parent: PhotoPicker) {
+            self.parent = parent
+        }
+     
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            parent.images.removeAll()
+            let group = DispatchGroup()
+            
+            for r in results {
+                if r.itemProvider.canLoadObject(ofClass: UIImage.self) {
+                    group.enter()
+                    r.itemProvider.loadObject(ofClass: UIImage.self) { (image, error) in
+                        if let image = image as? UIImage {
+                            self.parent.images.append(image)
+                        }
+                        group.leave()
+                    }
+                }
+            }
+            picker.dismiss(animated: true)
+        }
+        
+    }
+}
+
+
+//
+//  ShareSheet.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+
+struct ShareSheet:UIViewControllerRepresentable {
+    let activityItems: [Any]
+    func makeUIViewController(context: Context) -> some UIViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+    func updateUIViewController(_ uiViewController: UIViewControllerType, context: Context) {
+    
+    }
+}

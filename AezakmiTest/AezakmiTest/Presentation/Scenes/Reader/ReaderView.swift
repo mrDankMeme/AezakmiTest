@@ -12,27 +12,40 @@ struct ReaderView: View {
     @Environment(\.pdfService) private var pdf
     
     @StateObject var vm: ReaderViewModel
-    
-    init(document: Document) {
-        _vm = StateObject(wrappedValue: ReaderViewModel(
-            document: document,
-            repo: CompositionRoot.shared.documentRepository,
-            pdf: CompositionRoot.shared.pdf))
-    }
+    @State var showShare: Bool = false
+    @State var showCantDeleteAlert: Bool = false
+ 
     var body: some View {
-        ZStack {
-            VStack {
-                Spacer()
-                Text("Здесь будет и PDFKitView + удаление страницы, шаринг.")
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Reader")
+        VStack {
+            PDFKitView(url: vm.document.fileURL, currentPageIndex: $vm.currentPageIndex)
         }
-        .ignoresSafeArea(.container, edges: [.top, .bottom])
-        
+        .navigationTitle(vm.document.name)
+        .toolbar {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button("Удалить страницу") {
+                    if vm.canDeleteCurrentPage() {
+                        vm.deleteCurrentPage()
+                    } else {
+                        showCantDeleteAlert = true
+                    }
+                }
+                Button("Поделиться") {
+                    showShare = true
+                }
+                
+            }
+        }
+        .alert("Нельзя удалить страницу", isPresented: $showCantDeleteAlert) {
+            Button("Ok", role: .cancel) {
+                
+            }
+        }
+        .sheet(isPresented: $showShare) {
+            if let url = vm.shareURL() {
+                ShareSheet(activityItems: [url])
+            }
+            
+        }
     }
 }
 

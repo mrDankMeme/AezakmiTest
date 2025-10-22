@@ -8,12 +8,11 @@
 import SwiftUI
 
 struct LibraryView: View {
-    @Environment(\.documentRepository) private var repo
-    @StateObject private var vm: LibraryViewModel
     
-    init() {
-        _vm = StateObject(wrappedValue: LibraryViewModel(repo: CompositionRoot.shared.documentRepository))
-    }
+    @StateObject var vm: LibraryViewModel
+    @State private var shareURL: URL?
+    @State private var showShare: Bool = false
+    
     var body: some View {
         List {
             if vm.docs.isEmpty {
@@ -61,6 +60,11 @@ struct LibraryView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Library")
+        .sheet(isPresented: $showShare) {
+            if let url = shareURL {
+                ShareSheet(activityItems: [url])
+            }
+        }
     }
     
 }

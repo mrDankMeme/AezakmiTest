@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct WelcomeView: View {
+    @Environment(\.documentRepository) private var repo
+    @Environment(\.pdfService) private var pdf
     var body: some View {
         VStack(spacing: 16) {
             Text("PDF Maker")
@@ -17,14 +19,14 @@ struct WelcomeView: View {
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 16)
             NavigationLink("Перейти в Editor") {
-                EditorView()
+                EditorView(vm: EditorViewModel(repo: repo))
             }
             .buttonStyle(.borderedProminent)
             NavigationLink("Перейти в Library") {
-                LibraryView()
+                LibraryView(vm: LibraryViewModel(repo: repo))
             }
         }
-        .navigationTitle("Welcome")
+        
         
     }
 }

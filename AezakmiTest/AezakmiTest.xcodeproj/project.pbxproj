@@ -27,6 +27,11 @@
 		A35FF2CF2EA906E40000E890 /* EditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2CE2EA906DE0000E890 /* EditorViewModel.swift */; };
 		A35FF2D12EA90C4B0000E890 /* ReaderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2D02EA90C400000E890 /* ReaderViewModel.swift */; };
 		A35FF2D32EA90FE60000E890 /* PDFServiceKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2D22EA90FDE0000E890 /* PDFServiceKey.swift */; };
+		A35FF2D52EA91C980000E890 /* PhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2D42EA91C920000E890 /* PhotoPicker.swift */; };
+		A35FF2D72EA91F630000E890 /* FilePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2D62EA91F5F0000E890 /* FilePicker.swift */; };
+		A35FF2D92EA921AA0000E890 /* ReaderContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2D82EA9219F0000E890 /* ReaderContainer.swift */; };
+		A35FF2DB2EA9261A0000E890 /* PDFKitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2DA2EA926160000E890 /* PDFKitView.swift */; };
+		A35FF2DE2EA9290C0000E890 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2DD2EA929060000E890 /* ShareSheet.swift */; };
 		A39406B02EA7894300ED4787 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A39406AB2EA7894300ED4787 /* Assets.xcassets */; };
 		A39406B22EA7894300ED4787 /* AezakmiTestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39406AA2EA7894300ED4787 /* AezakmiTestApp.swift */; };
 		A39406BB2EA789CD00ED4787 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39406B82EA789CD00ED4787 /* RootView.swift */; };
@@ -54,6 +59,11 @@
 		A35FF2CE2EA906DE0000E890 /* EditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorViewModel.swift; sourceTree = "<group>"; };
 		A35FF2D02EA90C400000E890 /* ReaderViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderViewModel.swift; sourceTree = "<group>"; };
 		A35FF2D22EA90FDE0000E890 /* PDFServiceKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFServiceKey.swift; sourceTree = "<group>"; };
+		A35FF2D42EA91C920000E890 /* PhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoPicker.swift; sourceTree = "<group>"; };
+		A35FF2D62EA91F5F0000E890 /* FilePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePicker.swift; sourceTree = "<group>"; };
+		A35FF2D82EA9219F0000E890 /* ReaderContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderContainer.swift; sourceTree = "<group>"; };
+		A35FF2DA2EA926160000E890 /* PDFKitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFKitView.swift; sourceTree = "<group>"; };
+		A35FF2DD2EA929060000E890 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
 		A39406922EA788FD00ED4787 /* AezakmiTest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AezakmiTest.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A39406AA2EA7894300ED4787 /* AezakmiTestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AezakmiTestApp.swift; sourceTree = "<group>"; };
 		A39406AB2EA7894300ED4787 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -160,6 +170,14 @@
 			path = EnviromentKey;
 			sourceTree = "<group>";
 		};
+		A35FF2DC2EA928F90000E890 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				A35FF2DD2EA929060000E890 /* ShareSheet.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
 		A39406892EA788FD00ED4787 = {
 			isa = PBXGroup;
 			children = (
@@ -190,6 +208,7 @@
 			isa = PBXGroup;
 			children = (
 				A39406BA2EA789CD00ED4787 /* Scenes */,
+				A35FF2DC2EA928F90000E890 /* Components */,
 			);
 			path = Presentation;
 			sourceTree = "<group>";
@@ -248,6 +267,8 @@
 		A39406C62EA78C3F00ED4787 /* Editor */ = {
 			isa = PBXGroup;
 			children = (
+				A35FF2D42EA91C920000E890 /* PhotoPicker.swift */,
+				A35FF2D62EA91F5F0000E890 /* FilePicker.swift */,
 				A35FF2CE2EA906DE0000E890 /* EditorViewModel.swift */,
 				A35FF2CA2EA906AE0000E890 /* EditorView.swift */,
 			);
@@ -258,7 +279,9 @@
 			isa = PBXGroup;
 			children = (
 				A35FF2D02EA90C400000E890 /* ReaderViewModel.swift */,
+				A35FF2DA2EA926160000E890 /* PDFKitView.swift */,
 				A35FF2CC2EA906CB0000E890 /* ReaderView.swift */,
+				A35FF2D82EA9219F0000E890 /* ReaderContainer.swift */,
 			);
 			path = Reader;
 			sourceTree = "<group>";
@@ -337,6 +360,7 @@
 			files = (
 				A35FF2CF2EA906E40000E890 /* EditorViewModel.swift in Sources */,
 				A35FF2B52EA7E2080000E890 /* PDFServiceProtocol.swift in Sources */,
+				A35FF2D72EA91F630000E890 /* FilePicker.swift in Sources */,
 				A35FF2CD2EA906CB0000E890 /* ReaderView.swift in Sources */,
 				A35FF2B72EA7E32A0000E890 /* FileStore.swift in Sources */,
 				A35FF2BA2EA7E5090000E890 /* PDFService.swift in Sources */,
@@ -346,18 +370,22 @@
 				A39406BB2EA789CD00ED4787 /* RootView.swift in Sources */,
 				A35FF2BF2EA7F56E0000E890 /* DocumentRepositoryImpl.swift in Sources */,
 				A35FF2C22EA8EEC70000E890 /* CompositionRoot.swift in Sources */,
+				A35FF2DB2EA9261A0000E890 /* PDFKitView.swift in Sources */,
 				A35FF2C92EA8F5C70000E890 /* LibraryViewModel.swift in Sources */,
 				A39406C42EA78C3F00ED4787 /* Welcome.swift in Sources */,
 				A35FF2C72EA8F5B00000E890 /* LibraryView.swift in Sources */,
 				A35FF2A92EA7DCC20000E890 /* DocumentEntity.swift in Sources */,
 				A35FF2BC2EA7F3AF0000E890 /* DocumentRepositoryProtocol.swift in Sources */,
 				A35FF2AB2EA7DCDD0000E890 /* DocumentEntity+CoreDataProperties.swift in Sources */,
+				A35FF2D92EA921AA0000E890 /* ReaderContainer.swift in Sources */,
 				A35FF2B22EA7E1050000E890 /* FileStoreProtocol.swift in Sources */,
 				A35FF2A32EA7D55F0000E890 /* DocumentsModel.xcdatamodeld in Sources */,
 				A35FF2C52EA8F3D90000E890 /* DocumentRepositoryKey.swift in Sources */,
+				A35FF2D52EA91C980000E890 /* PhotoPicker.swift in Sources */,
 				A35FF2D32EA90FE60000E890 /* PDFServiceKey.swift in Sources */,
 				A39406B22EA7894300ED4787 /* AezakmiTestApp.swift in Sources */,
 				A35FF2D12EA90C4B0000E890 /* ReaderViewModel.swift in Sources */,
+				A35FF2DE2EA9290C0000E890 /* ShareSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
