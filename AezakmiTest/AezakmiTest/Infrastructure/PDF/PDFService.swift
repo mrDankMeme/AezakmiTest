@@ -57,6 +57,7 @@ public struct PDFService : PDFServiceProtocol {
         
         return p.thumbnail(of: size, for: .cropBox)
     }
+  
     //Удаление страницы и пересохранение в новый файл
     public func removePage(at index: Int, in PDFurl: URL) throws -> URL {
         guard let doc = PDFDocument(url: PDFurl) else {

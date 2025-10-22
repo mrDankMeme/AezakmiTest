@@ -10,11 +10,15 @@ import SwiftUI
 
 @main
 struct AezakmiTestApp: App {
-    private let coreData = CoreDataStack(modelName: "DocumentsModel")
+    
+    @MainActor private let root = CompositionRoot.shared
+    
     var body: some Scene {
         WindowGroup {
-            RootView().environment(\.managedObjectContext, coreData.viewContext)
-               
+            RootView()
+                .environment(\.managedObjectContext, root.coreData.viewContext)
+                .environment(\.documentRepository, root.documentRepository)
+                .environment(\.pdfService, root.pdf)
         }
     }
 }
