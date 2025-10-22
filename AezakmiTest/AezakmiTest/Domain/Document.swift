@@ -8,7 +8,7 @@
 import Foundation
 import UIKit
 
-private struct Document: Identifiable, Hashable {
+public struct Document: Identifiable, Hashable {
     public let id: UUID
     public var name: String
     public var fileURL: URL

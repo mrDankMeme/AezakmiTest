@@ -12,6 +12,12 @@
 		A35FF2A92EA7DCC20000E890 /* DocumentEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2A82EA7DCC20000E890 /* DocumentEntity.swift */; };
 		A35FF2AB2EA7DCDD0000E890 /* DocumentEntity+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2AA2EA7DCD70000E890 /* DocumentEntity+CoreDataProperties.swift */; };
 		A35FF2AE2EA7DD3A0000E890 /* Document.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2AD2EA7DD3A0000E890 /* Document.swift */; };
+		A35FF2B22EA7E1050000E890 /* FileStoreProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2B12EA7E0FA0000E890 /* FileStoreProtocol.swift */; };
+		A35FF2B52EA7E2080000E890 /* PDFServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2B42EA7E2000000E890 /* PDFServiceProtocol.swift */; };
+		A35FF2B72EA7E32A0000E890 /* FileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2B62EA7E32A0000E890 /* FileStore.swift */; };
+		A35FF2BA2EA7E5090000E890 /* PDFService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2B92EA7E5090000E890 /* PDFService.swift */; };
+		A35FF2BC2EA7F3AF0000E890 /* DocumentRepositoryProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2BB2EA7F39F0000E890 /* DocumentRepositoryProtocol.swift */; };
+		A35FF2BF2EA7F56E0000E890 /* DocumentRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2BE2EA7F5600000E890 /* DocumentRepositoryImpl.swift */; };
 		A39406B02EA7894300ED4787 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A39406AB2EA7894300ED4787 /* Assets.xcassets */; };
 		A39406B22EA7894300ED4787 /* AezakmiTestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39406AA2EA7894300ED4787 /* AezakmiTestApp.swift */; };
 		A39406BB2EA789CD00ED4787 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39406B82EA789CD00ED4787 /* RootView.swift */; };
@@ -24,6 +30,12 @@
 		A35FF2A82EA7DCC20000E890 /* DocumentEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentEntity.swift; sourceTree = "<group>"; };
 		A35FF2AA2EA7DCD70000E890 /* DocumentEntity+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DocumentEntity+CoreDataProperties.swift"; sourceTree = "<group>"; };
 		A35FF2AD2EA7DD3A0000E890 /* Document.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Document.swift; sourceTree = "<group>"; };
+		A35FF2B12EA7E0FA0000E890 /* FileStoreProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileStoreProtocol.swift; sourceTree = "<group>"; };
+		A35FF2B42EA7E2000000E890 /* PDFServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFServiceProtocol.swift; sourceTree = "<group>"; };
+		A35FF2B62EA7E32A0000E890 /* FileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileStore.swift; sourceTree = "<group>"; };
+		A35FF2B92EA7E5090000E890 /* PDFService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFService.swift; sourceTree = "<group>"; };
+		A35FF2BB2EA7F39F0000E890 /* DocumentRepositoryProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentRepositoryProtocol.swift; sourceTree = "<group>"; };
+		A35FF2BE2EA7F5600000E890 /* DocumentRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentRepositoryImpl.swift; sourceTree = "<group>"; };
 		A39406922EA788FD00ED4787 /* AezakmiTest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AezakmiTest.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A39406AA2EA7894300ED4787 /* AezakmiTestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AezakmiTestApp.swift; sourceTree = "<group>"; };
 		A39406AB2EA7894300ED4787 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -64,8 +76,53 @@
 			isa = PBXGroup;
 			children = (
 				A35FF2AD2EA7DD3A0000E890 /* Document.swift */,
+				A35FF2B32EA7E10A0000E890 /* Protocol */,
 			);
 			path = Domain;
+			sourceTree = "<group>";
+		};
+		A35FF2AF2EA7E0DF0000E890 /* Infrastructure */ = {
+			isa = PBXGroup;
+			children = (
+				A35FF2BD2EA7F5590000E890 /* Repositories */,
+				A35FF2B82EA7E4FF0000E890 /* PDF */,
+				A35FF2B02EA7E0E80000E890 /* Storage */,
+			);
+			path = Infrastructure;
+			sourceTree = "<group>";
+		};
+		A35FF2B02EA7E0E80000E890 /* Storage */ = {
+			isa = PBXGroup;
+			children = (
+				A35FF2B62EA7E32A0000E890 /* FileStore.swift */,
+			);
+			path = Storage;
+			sourceTree = "<group>";
+		};
+		A35FF2B32EA7E10A0000E890 /* Protocol */ = {
+			isa = PBXGroup;
+			children = (
+				A35FF2BB2EA7F39F0000E890 /* DocumentRepositoryProtocol.swift */,
+				A35FF2B12EA7E0FA0000E890 /* FileStoreProtocol.swift */,
+				A35FF2B42EA7E2000000E890 /* PDFServiceProtocol.swift */,
+			);
+			path = Protocol;
+			sourceTree = "<group>";
+		};
+		A35FF2B82EA7E4FF0000E890 /* PDF */ = {
+			isa = PBXGroup;
+			children = (
+				A35FF2B92EA7E5090000E890 /* PDFService.swift */,
+			);
+			path = PDF;
+			sourceTree = "<group>";
+		};
+		A35FF2BD2EA7F5590000E890 /* Repositories */ = {
+			isa = PBXGroup;
+			children = (
+				A35FF2BE2EA7F5600000E890 /* DocumentRepositoryImpl.swift */,
+			);
+			path = Repositories;
 			sourceTree = "<group>";
 		};
 		A39406892EA788FD00ED4787 = {
@@ -103,6 +160,7 @@
 		A39406AE2EA7894300ED4787 /* AezakmiTest */ = {
 			isa = PBXGroup;
 			children = (
+				A35FF2AF2EA7E0DF0000E890 /* Infrastructure */,
 				A35FF2AC2EA7DD2B0000E890 /* Domain */,
 				A35FF2A42EA7D7650000E890 /* Core */,
 				A39406A72EA7894300ED4787 /* App */,
@@ -234,12 +292,18 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A35FF2B52EA7E2080000E890 /* PDFServiceProtocol.swift in Sources */,
+				A35FF2B72EA7E32A0000E890 /* FileStore.swift in Sources */,
+				A35FF2BA2EA7E5090000E890 /* PDFService.swift in Sources */,
 				A35FF2AE2EA7DD3A0000E890 /* Document.swift in Sources */,
 				A35FF2A62EA7D7790000E890 /* CoreDataStack.swift in Sources */,
 				A39406BB2EA789CD00ED4787 /* RootView.swift in Sources */,
+				A35FF2BF2EA7F56E0000E890 /* DocumentRepositoryImpl.swift in Sources */,
 				A39406C42EA78C3F00ED4787 /* Welcome.swift in Sources */,
 				A35FF2A92EA7DCC20000E890 /* DocumentEntity.swift in Sources */,
+				A35FF2BC2EA7F3AF0000E890 /* DocumentRepositoryProtocol.swift in Sources */,
 				A35FF2AB2EA7DCDD0000E890 /* DocumentEntity+CoreDataProperties.swift in Sources */,
+				A35FF2B22EA7E1050000E890 /* FileStoreProtocol.swift in Sources */,
 				A35FF2A32EA7D55F0000E890 /* DocumentsModel.xcdatamodeld in Sources */,
 				A39406B22EA7894300ED4787 /* AezakmiTestApp.swift in Sources */,
 			);
