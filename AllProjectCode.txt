@@ -115,6 +115,26 @@ struct AezakmiTestApp: App {
     }
 }
 //
+//  SpeechServiceKey.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/23/25.
+//
+
+
+import SwiftUI
+
+private struct SpeechServiceKey: EnvironmentKey {
+    static let defaultValue: SpeechServiceProtocol = SpeechRecognizer()
+}
+
+extension EnvironmentValues {
+    var speechService: SpeechServiceProtocol {
+        get { self[SpeechServiceKey.self] }
+        set { self[SpeechServiceKey.self] = newValue }
+    }
+}
+//
 //  DocumentRepositoryKey.swift
 //  AezakmiTest
 //
@@ -389,51 +409,40 @@ private extension PDFService {
 //  Created by Niiaz Khasanov on 10/23/25.
 //
 
-
 import Foundation
-import AVFoundation
 import Speech
+import AVFoundation
 
-final class SpeechRecognizer: NSObject {
+final class SpeechRecognizer: NSObject, SpeechServiceProtocol {
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "ru-RU"))
     private let audioEngine = AVAudioEngine()
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
 
-    var onText: ((String) -> Void)?
-    var onError: ((String) -> Void)?
-    var onFinish: (() -> Void)?
-
-    func start() {
+    func start(
+        onText: @escaping (String) -> Void,
+        onError: @escaping (String) -> Void,
+        onFinish: @escaping () -> Void
+    ) {
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
-            guard let self = self else { return }
+            guard let self else { return }
             if status == .authorized {
-                DispatchQueue.main.async { self.beginSession() }
+                DispatchQueue.main.async {
+                    self.beginSession(onText: onText, onError: onError, onFinish: onFinish)
+                }
             } else {
                 DispatchQueue.main.async {
-                    self.onError?("Доступ к распознаванию речи не разрешён")
+                    onError("Доступ к распознаванию речи не разрешён")
                 }
             }
         }
     }
 
-    func stop() {
-        request?.endAudio()
-        if audioEngine.isRunning {
-            audioEngine.stop()
-        }
-        if audioEngine.inputNode.outputFormat(forBus: 0).channelCount > 0 {
-            audioEngine.inputNode.removeTap(onBus: 0)
-        }
-        // НЕ вызываем cancel — даём таске корректно завершиться.
-    }
-
-    func cancel() {
-        task?.cancel()
-        cleanup()
-    }
-
-    private func beginSession() {
+    private func beginSession(
+        onText: @escaping (String) -> Void,
+        onError: @escaping (String) -> Void,
+        onFinish: @escaping () -> Void
+    ) {
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.record, mode: .measurement, options: [.duckOthers])
@@ -454,37 +463,46 @@ final class SpeechRecognizer: NSObject {
             try audioEngine.start()
 
             task = recognizer?.recognitionTask(with: req) { [weak self] result, error in
-                guard let self = self else { return }
+                guard let self else { return }
 
                 if let text = result?.bestTranscription.formattedString {
-                    self.onText?(text)
+                    onText(text)
                 }
 
                 if let err = error as NSError? {
-                    // Игнорируем «отменено» при штатной остановке
                     let msg = err.localizedDescription.lowercased()
-                    if err.domain == "kSFSpeechRecognitionErrorDomain" && err.code == 203 { return }
                     if msg.contains("canceled") { return }
-                    self.onError?(err.localizedDescription)
+                    onError(err.localizedDescription)
                     self.cleanup()
                     return
                 }
 
                 if result?.isFinal == true {
-                    self.onFinish?()
+                    onFinish()
                     self.cleanup()
                 }
             }
         } catch {
-            onError?("Не удалось запустить аудиосессию: \(error.localizedDescription)")
+            onError("Ошибка аудиосессии: \(error.localizedDescription)")
             cleanup()
         }
     }
 
-    private func cleanup() {
-        if audioEngine.isRunning {
-            audioEngine.stop()
+    func stop() {
+        request?.endAudio()
+        if audioEngine.isRunning { audioEngine.stop() }
+        if audioEngine.inputNode.outputFormat(forBus: 0).channelCount > 0 {
+            audioEngine.inputNode.removeTap(onBus: 0)
         }
+    }
+
+    func cancel() {
+        task?.cancel()
+        cleanup()
+    }
+
+    private func cleanup() {
+        if audioEngine.isRunning { audioEngine.stop() }
         if audioEngine.inputNode.outputFormat(forBus: 0).channelCount > 0 {
             audioEngine.inputNode.removeTap(onBus: 0)
         }
@@ -793,6 +811,26 @@ public class FileStore: FileStoreProtocol {
     private var maxFileNameBytes: Int { 240 }
 }
 //
+//  SpeechServiceProtocol.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/23/25.
+//
+
+ 
+
+import Foundation
+
+public protocol SpeechServiceProtocol {
+    func start(
+        onText: @escaping (String) -> Void,
+        onError: @escaping (String) -> Void,
+        onFinish: @escaping () -> Void
+    )
+    func stop()
+    func cancel()
+}
+//
 //  DocumentRepositoryProtocol.swift
 //  AezakmiTest
 //
@@ -1081,14 +1119,14 @@ import SwiftUI
 
 struct DictationView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.speechService) private var speech: SpeechServiceProtocol
 
-    @State private var text: String = ""
+    @State private var text = ""
     @State private var isRunning = false
     @State private var showError = false
     @State private var errorMessage = ""
 
     let onCommit: (String) -> Void
-    private let speech = SpeechRecognizer()
 
     var body: some View {
         NavigationView {
@@ -1098,13 +1136,13 @@ struct DictationView: View {
                     .padding()
                     .background(Color(UIColor.secondarySystemBackground))
                     .cornerRadius(16)
-                    .disabled(isRunning == false)
+                    .disabled(!isRunning)
 
                 Spacer()
 
                 HStack(spacing: 20) {
                     Button(isRunning ? "Стоп" : "Старт") {
-                        if isRunning { stop() } else { start() }
+                        isRunning ? stop() : start()
                     }
                     .buttonStyle(.borderedProminent)
 
@@ -1142,18 +1180,15 @@ struct DictationView: View {
     }
 
     private func start() {
-        speech.onText = { new in
-            text = new
-        }
-        speech.onError = { msg in
-            errorMessage = msg
-            showError = true
-            isRunning = false
-        }
-        speech.onFinish = {
-            isRunning = false
-        }
-        speech.start()
+        speech.start(
+            onText: { new in text = new },
+            onError: { msg in
+                errorMessage = msg
+                showError = true
+                isRunning = false
+            },
+            onFinish: { isRunning = false }
+        )
         isRunning = true
     }
 
@@ -1163,7 +1198,7 @@ struct DictationView: View {
     }
 
     private func cancel() {
-        speech.cancel()      
+        speech.cancel()
         isRunning = false
     }
 }
