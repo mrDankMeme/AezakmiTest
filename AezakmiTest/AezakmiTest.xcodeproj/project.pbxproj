@@ -35,6 +35,8 @@
 		A35FF2E02EAA292F0000E890 /* BusyOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2DF2EAA29290000E890 /* BusyOverlay.swift */; };
 		A35FF2E32EAA756B0000E890 /* FileImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2E22EAA756B0000E890 /* FileImageLoader.swift */; };
 		A35FF2E52EAAA4240000E890 /* PageSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2E42EAAA4240000E890 /* PageSelectionView.swift */; };
+		A35FF2E92EAAA7660000E890 /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2E82EAAA7660000E890 /* SpeechRecognizer.swift */; };
+		A35FF2EC2EAAA7D60000E890 /* DictationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2EB2EAAA7D60000E890 /* DictationView.swift */; };
 		A39406B02EA7894300ED4787 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A39406AB2EA7894300ED4787 /* Assets.xcassets */; };
 		A39406B22EA7894300ED4787 /* AezakmiTestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39406AA2EA7894300ED4787 /* AezakmiTestApp.swift */; };
 		A39406BB2EA789CD00ED4787 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39406B82EA789CD00ED4787 /* RootView.swift */; };
@@ -70,6 +72,8 @@
 		A35FF2DF2EAA29290000E890 /* BusyOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusyOverlay.swift; sourceTree = "<group>"; };
 		A35FF2E22EAA756B0000E890 /* FileImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileImageLoader.swift; sourceTree = "<group>"; };
 		A35FF2E42EAAA4240000E890 /* PageSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageSelectionView.swift; sourceTree = "<group>"; };
+		A35FF2E82EAAA7660000E890 /* SpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognizer.swift; sourceTree = "<group>"; };
+		A35FF2EB2EAAA7D60000E890 /* DictationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationView.swift; sourceTree = "<group>"; };
 		A39406922EA788FD00ED4787 /* AezakmiTest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AezakmiTest.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A39406AA2EA7894300ED4787 /* AezakmiTestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AezakmiTestApp.swift; sourceTree = "<group>"; };
 		A39406AB2EA7894300ED4787 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -189,6 +193,7 @@
 		A35FF2E12EAA75620000E890 /* Utils */ = {
 			isa = PBXGroup;
 			children = (
+				A35FF2E82EAAA7660000E890 /* SpeechRecognizer.swift */,
 				A35FF2E22EAA756B0000E890 /* FileImageLoader.swift */,
 			);
 			path = Utils;
@@ -294,6 +299,7 @@
 		A39406C72EA78F2000ED4787 /* Reader */ = {
 			isa = PBXGroup;
 			children = (
+				A35FF2EB2EAAA7D60000E890 /* DictationView.swift */,
 				A35FF2E42EAAA4240000E890 /* PageSelectionView.swift */,
 				A35FF2D02EA90C400000E890 /* ReaderViewModel.swift */,
 				A35FF2DA2EA926160000E890 /* PDFKitView.swift */,
@@ -376,6 +382,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A35FF2CF2EA906E40000E890 /* EditorViewModel.swift in Sources */,
+				A35FF2E92EAAA7660000E890 /* SpeechRecognizer.swift in Sources */,
 				A35FF2B52EA7E2080000E890 /* PDFServiceProtocol.swift in Sources */,
 				A35FF2D72EA91F630000E890 /* FilePicker.swift in Sources */,
 				A35FF2E02EAA292F0000E890 /* BusyOverlay.swift in Sources */,
@@ -391,6 +398,7 @@
 				A35FF2DB2EA9261A0000E890 /* PDFKitView.swift in Sources */,
 				A35FF2C92EA8F5C70000E890 /* LibraryViewModel.swift in Sources */,
 				A39406C42EA78C3F00ED4787 /* Welcome.swift in Sources */,
+				A35FF2EC2EAAA7D60000E890 /* DictationView.swift in Sources */,
 				A35FF2C72EA8F5B00000E890 /* LibraryView.swift in Sources */,
 				A35FF2A92EA7DCC20000E890 /* DocumentEntity.swift in Sources */,
 				A35FF2BC2EA7F3AF0000E890 /* DocumentRepositoryProtocol.swift in Sources */,
@@ -543,6 +551,8 @@
 				DEVELOPMENT_TEAM = 2NVL5EUMWM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Микрофон нужен для диктовки текста.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Распознавание речи используется для добавления текста в PDF.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -576,6 +586,8 @@
 				DEVELOPMENT_TEAM = 2NVL5EUMWM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Микрофон нужен для диктовки текста.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Распознавание речи используется для добавления текста в PDF.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
