@@ -22,6 +22,9 @@ struct ReaderView: View {
         .navigationTitle(vm.document.name)
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button("Повернуть") {
+                    vm.rotateCurrentPage(clockwise: true)
+                }
                 Button("Удалить страницу") {
                     if vm.canDeleteCurrentPage() {
                         vm.deleteCurrentPage()

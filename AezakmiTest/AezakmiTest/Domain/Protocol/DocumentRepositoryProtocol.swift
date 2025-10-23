@@ -20,9 +20,11 @@ public protocol DocumentRepositoryProtocol {
     //операции
     func delete(id: UUID) throws
     func shareURL(for id: UUID) throws -> URL
+    func replaceStoredFile(for id: UUID, with newURL: URL) throws
     
     //пригодится позже
     func merge(_ a: UUID, _ b: UUID, name: String?) throws -> Document
     func updateThumbnailIfNeeded(for id: UUID) throws
+    
     
 }

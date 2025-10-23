@@ -15,14 +15,14 @@ public struct PDFService : PDFServiceProtocol {
     }
     
     public func createPDF(from images: [UIImage], suggestedName: String?) throws -> URL {
-     
+        
         guard !images.isEmpty else {
             throw makeError("no images to render")
         }
-      
+        
         let fileStore = FileStore()
         let dst = try fileStore.uniquePDFURL(suggestedName: suggestedName)
-       
+        
         // A4 @72dpi
         let pageRect : CGRect = CGRect(x: 0, y: 0, width: 595, height: 842)
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
@@ -57,11 +57,11 @@ public struct PDFService : PDFServiceProtocol {
         
         return p.thumbnail(of: size, for: .cropBox)
     }
-  
+    
     //Удаление страницы и пересохранение в новый файл
     public func removePage(at index: Int, in PDFurl: URL) throws -> URL {
         guard let doc = PDFDocument(url: PDFurl) else {
-        throw makeError("Cannot open PDF")
+            throw makeError("Cannot open PDF")
         }
         guard index>=0, index<doc.pageCount else {
             throw makeError("Page out of range")
@@ -73,7 +73,7 @@ public struct PDFService : PDFServiceProtocol {
         try write(doc: doc, to: outURL)
         return outURL
     }
- 
+    
     //Обьединение нескольких PDF в один (пока только зачаток)
     public func merge(docs urls: [URL], suggestedName: String?) throws -> URL {
         let out = PDFDocument()
@@ -89,7 +89,7 @@ public struct PDFService : PDFServiceProtocol {
                     cursor += 1
                 }
             }
-                    
+            
         }
         let outURL = try FileStore().uniquePDFURL(suggestedName: suggestedName ?? "Merged")
         try write(doc: out, to: outURL)
@@ -100,15 +100,35 @@ public struct PDFService : PDFServiceProtocol {
     public func pageCount(of pdfURL: URL) -> Int {
         return PDFDocument(url: pdfURL)?.pageCount ?? 0
     }
+    
+    // Поворачиваем странчку на 90 градусов
+    public func rotatePage(at index: Int, in pdfURL: URL, clockwise: Bool) throws -> URL {
+        guard let doc = PDFDocument(url: pdfURL) else {
+            throw makeError("Не могу открыть PDF файл.")
+        }
+        guard let page = doc.page(at: index) else {
+            throw makeError("Индекс аут от рендж.")
+        }
+        
+        let current = page.rotation
+        let delta = clockwise ? 90 : -90
+        var newRotation = (current + delta) % 360
+        if newRotation < 0 { newRotation += 360 }
+        page.rotation = newRotation
+        
+        let outURL = try FileStore().uniquePDFURL(suggestedName: pdfURL.deletingPathExtension().lastPathComponent)
+        try write(doc: doc, to: outURL)
+        return outURL
+    }
 }
 
 //MARK: - Helpers
 private extension PDFService {
     private func write(doc: PDFDocument, to url: URL) throws {
-          guard doc.write(to: url) else {
-              throw makeError("Failed to write PDF")
-          }
-      }
+        guard doc.write(to: url) else {
+            throw makeError("Failed to write PDF")
+        }
+    }
     func aspectFitRect(imageSize: CGSize, in bounds: CGRect) -> CGRect {
         guard imageSize.width > 0, imageSize.height > 0 else { return bounds }
         let scale = min(bounds.width / imageSize.width, bounds.height / imageSize.height)

@@ -26,14 +26,34 @@ final class ReaderViewModel : ObservableObject {
     func canDeleteCurrentPage() -> Bool {
         document.pageCount > 1 // не даю ему удалить последнюю старницу, потому что не хочу получить пустой документ
     }
+  
     func deleteCurrentPage() {
+        guard canDeleteCurrentPage() else { return }
         do {
             let newURL = try pdf.removePage(at: currentPageIndex, in: document.fileURL)
+            
+            try repo.replaceStoredFile(for: document.id, with: newURL)
+            
+            
             document.fileURL = newURL
             document.pageCount = pdf.pageCount(of: newURL)
-            try repo.updateThumbnailIfNeeded(for: document.id)
+            if currentPageIndex >= document.pageCount {
+                currentPageIndex = max(0, document.pageCount - 1)
+            }
         } catch {
             print("Delete page error: \(error)")
+        }
+    }
+    
+    func rotateCurrentPage(clockwise: Bool = true) {
+        do {
+            let newURL = try pdf.rotatePage(at: currentPageIndex, in: document.fileURL, clockwise: true)
+            try repo.replaceStoredFile(for: document.id, with: newURL)
+            
+            document.fileURL = newURL
+            document.pageCount = pdf.pageCount(of: newURL)
+        } catch {
+            print("Rotate page error: \(error)")
         }
     }
     

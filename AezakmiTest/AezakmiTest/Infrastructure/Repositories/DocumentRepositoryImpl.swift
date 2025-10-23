@@ -91,6 +91,31 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
             reload()
         }
     }
+    
+    func replaceStoredFile(for id: UUID, with newURL: URL) throws {
+        let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "id = %@", id as CVarArg)
+        
+        guard let obj = try context.fetch(req).first else {
+           throw NSError(domain: "Repo", code: 404, userInfo: [NSLocalizedDescriptionKey: "Not found"])
+        }
+        //старый путь (чтобы удалить после успешного сохранения)
+        let oldURL = URL(string: obj.fileURL)
+        
+        //новые метаданные
+        obj.fileURL = newURL.absoluteString
+        obj.pageCount = Int16(pdf.pageCount(of: newURL))
+        if let thumb = try? pdf.thumbNail(for: newURL, page: 0, size: CGSize(width: 160, height: 200)) {
+            obj.thumbnail = thumb.pngData()
+        }
+        try context.save()
+        reload()
+        
+        if let old = oldURL, old != newURL {
+            try? fileStore.removeFile(at: old)
+        }
+        
+    }
 }
 
 // MARK: - Helpers
