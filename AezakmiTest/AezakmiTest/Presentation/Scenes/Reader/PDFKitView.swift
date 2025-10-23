@@ -11,47 +11,41 @@ import PDFKit
 struct PDFKitView: UIViewRepresentable {
     let url: URL
     @Binding var currentPageIndex: Int
-    
+
     func makeUIView(context: Context) -> PDFView {
         let v = PDFView()
         v.autoScales = true
         v.displayMode = .singlePageContinuous
         v.delegate = context.coordinator
-
-        if let doc = PDFDocument(url: url) {
-            print("✅ Loaded PDF:", url.path, "pages =", doc.pageCount)
-            v.document = doc
-        } else {
-            print("❌ Cannot load PDF at", url.path)
-        }
-
+        v.document = PDFDocument(url: url)
         return v
     }
 
-   
     func updateUIView(_ uiView: PDFView, context: Context) {
         if uiView.document?.documentURL != url {
             uiView.document = PDFDocument(url: url)
         }
+        if let doc = uiView.document,
+           currentPageIndex >= 0,
+           currentPageIndex < doc.pageCount,
+           let page = doc.page(at: currentPageIndex),
+           uiView.currentPage != page {
+            uiView.go(to: page)
+        }
     }
-  
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
-    
-    final class Coordinator:NSObject, PDFViewDelegate {
+
+    final class Coordinator: NSObject, PDFViewDelegate {
         let parent: PDFKitView
-        init(_ parent: PDFKitView) {
-            self.parent = parent
-        }
-        
-        
+        init(_ parent: PDFKitView) { self.parent = parent }
+
         func pdfViewPageChanged(_ sender: PDFView) {
-            if let page = sender.currentPage,
-                let doc = sender.document {
-                    parent.currentPageIndex = doc.index(for: page)
-            }
+            guard let page = sender.currentPage,
+                  let doc = sender.document else { return }
+            parent.currentPageIndex = doc.index(for: page)
         }
     }
 }
-

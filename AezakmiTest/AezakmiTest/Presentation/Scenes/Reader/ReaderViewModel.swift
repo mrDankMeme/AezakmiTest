@@ -14,7 +14,8 @@ final class ReaderViewModel : ObservableObject {
     
     @Published var isBusy = false
     @Published var errorMessage: String?
-
+    
+    
     private let repo: DocumentRepositoryProtocol
     private let pdf: PDFServiceProtocol
     
@@ -29,36 +30,42 @@ final class ReaderViewModel : ObservableObject {
     func canDeleteCurrentPage() -> Bool {
         document.pageCount > 1 // не даю ему удалить последнюю старницу, потому что не хочу получить пустой документ
     }
-  
-    func deleteCurrentPage() {
-        guard canDeleteCurrentPage() else { return }
+    
+    func deletePage(at index: Int) {
+        guard index >= 0, index < document.pageCount else {
+            errorMessage = "Страница \(index + 1) вне диапазона (1–\(document.pageCount))"
+            return
+        }
+        if document.pageCount <= 1 {
+            errorMessage = "Нельзя удалить последнюю страницу"
+            return
+        }
+        
         isBusy = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             do {
-                let newURL = try pdf.removePage(at: currentPageIndex, in: document.fileURL)
+                let newURL = try pdf.removePage(at: index, in: document.fileURL)
                 try repo.replaceStoredFile(for: document.id, with: newURL)
                 let newCount = pdf.pageCount(of: newURL)
                 
-                DispatchQueue.main.async { [weak self] in
-                    guard let self = self else { return }
-                    document.fileURL = newURL
-                    document.pageCount = newCount
-                    if currentPageIndex >= document.pageCount {
-                        currentPageIndex = max(0, document.pageCount - 1)
-                    }
-                    isBusy = false
+                DispatchQueue.main.async {
+                    self.document.fileURL = newURL
+                    self.document.pageCount = newCount
+                    self.currentPageIndex = min(self.currentPageIndex, max(0, newCount - 1))
+                    self.isBusy = false
                 }
             } catch {
                 DispatchQueue.main.async {
-                    [weak self] in
-                    guard let self = self else { return }
-                    isBusy = false
-                    errorMessage = nil
+                    self.errorMessage = error.localizedDescription
+                    self.isBusy = false
                 }
-               
             }
         }
+    }
+    
+    func deleteCurrentPage() {
+        deletePage(at: currentPageIndex)
     }
     
     func rotateCurrentPage(clockwise: Bool = true) {
@@ -69,7 +76,7 @@ final class ReaderViewModel : ObservableObject {
                 let newURL = try pdf.rotatePage(at: currentPageIndex, in: document.fileURL, clockwise: true)
                 try repo.replaceStoredFile(for: document.id, with: newURL)
                 let newCount = pdf.pageCount(of: newURL)
-          
+                
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return }
                     document.fileURL = newURL
@@ -84,7 +91,7 @@ final class ReaderViewModel : ObservableObject {
                 }
             }
         }
-     
+        
     }
     func addTextPage(_ text: String) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {

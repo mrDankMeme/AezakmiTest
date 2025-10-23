@@ -33,7 +33,6 @@ public struct PDFService : PDFServiceProtocol {
                 let rect = aspectFitRect(imageSize: img.size, in: pageRect)
                 img.draw(in: rect.integral)
             }
-            
         }
         
         try data.write(to: dst, options: .atomic)
@@ -47,7 +46,6 @@ public struct PDFService : PDFServiceProtocol {
         return try FileStore().copyToSandbox(fileAt: url, suggestedName: base)
     }
 
-    
     // Миниатюра первой (или заданной) страницы
     public func thumbNail(for pdfUrl: URL, page: Int, size: CGSize) throws -> UIImage {
         guard let doc = PDFDocument(url: pdfUrl) else {
@@ -60,23 +58,23 @@ public struct PDFService : PDFServiceProtocol {
         return p.thumbnail(of: size, for: .cropBox)
     }
     
-    //Удаление страницы и пересохранение в новый файл
+    // Удаление страницы и пересохранение в новый файл
     public func removePage(at index: Int, in PDFurl: URL) throws -> URL {
         guard let doc = PDFDocument(url: PDFurl) else {
             throw makeError("Cannot open PDF")
         }
-        guard index>=0, index<doc.pageCount else {
+        guard index >= 0, index < doc.pageCount else {
             throw makeError("Page out of range")
         }
         
         doc.removePage(at: index)
         
-        let outURL = try FileStore().uniquePDFURL(suggestedName: PDFurl.deletingPathExtension().lastPathComponent   )
+        let outURL = try FileStore().uniquePDFURL(suggestedName: PDFurl.deletingPathExtension().lastPathComponent)
         try write(doc: doc, to: outURL)
         return outURL
     }
     
-    //Обьединение нескольких PDF в один (пока только зачаток)
+    // Объединение нескольких PDF (как у тебя)
     public func merge(docs urls: [URL], suggestedName: String?) throws -> URL {
         let outDoc = PDFDocument()
         var insertIndex = 0
@@ -111,7 +109,7 @@ public struct PDFService : PDFServiceProtocol {
         return PDFDocument(url: pdfURL)?.pageCount ?? 0
     }
     
-    // Поворачиваем странчку на 90 градусов
+    // Поворот страницы на 90°
     public func rotatePage(at index: Int, in pdfURL: URL, clockwise: Bool) throws -> URL {
         guard let doc = PDFDocument(url: pdfURL) else {
             throw makeError("Не могу открыть PDF файл.")
@@ -157,21 +155,19 @@ public struct PDFService : PDFServiceProtocol {
         // поля страницы
         let insetRect = pageRect.insetBy(dx: 32, dy: 32)
         let ns = text as NSString
-        
-        // многострочный вывод в прямоугольник
-        ns.draw(in: insetRect,withAttributes: attrs)
+        ns.draw(in: insetRect, withAttributes: attrs)
         
         guard let img = UIGraphicsGetImageFromCurrentImageContext() else {
             throw makeError("Failed to render text page")
         }
         
-        //Создаем PDFPage из изображения и добавляем в документ
+        // Создаём PDFPage из изображения и добавляем в документ
         guard let page = PDFPage(image: img) else {
             throw makeError("Failed to create PDFPage from image")
         }
         doc.insert(page, at: doc.pageCount)
         
-        //сохраняем в новый файл
+        // сохраняем в новый файл
         let base = pdfURL.deletingPathExtension().lastPathComponent
         let outURL = try FileStore().uniquePDFURL(suggestedName: base)
         try write(doc: doc, to: outURL)
@@ -179,13 +175,21 @@ public struct PDFService : PDFServiceProtocol {
     }
 }
 
-//MARK: - Helpers
+// MARK: - Helpers
 private extension PDFService {
+    /// ВАЖНО: вместо голого `doc.write(to:)` пишем атомарно через dataRepresentation().
+    /// Это устраняет «Failed to write PDF» при удалении/мердже на части устройств.
     private func write(doc: PDFDocument, to url: URL) throws {
+        if let data = doc.dataRepresentation() {
+            try data.write(to: url, options: .atomic) // атомарная запись
+            return
+        }
+        // Фолбэк: если почему-то dataRepresentation() вернул nil — пробуем старый путь
         guard doc.write(to: url) else {
             throw makeError("Failed to write PDF")
         }
     }
+    
     func aspectFitRect(imageSize: CGSize, in bounds: CGRect) -> CGRect {
         guard imageSize.width > 0, imageSize.height > 0 else { return bounds }
         let scale = min(bounds.width / imageSize.width, bounds.height / imageSize.height)

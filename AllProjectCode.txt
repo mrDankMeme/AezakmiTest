@@ -366,6 +366,25 @@ private extension PDFService {
     }
 }
 //
+//  FileImageLoader.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/23/25.
+//
+
+
+import UIKit
+import ImageIO
+import MobileCoreServices
+
+enum FileImageLoader {
+    static func loadFirstImage(from url: URL) -> UIImage? {
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        guard let cg = CGImageSourceCreateImageAtIndex(src, 0, [kCGImageSourceShouldCache: true as CFBoolean] as CFDictionary) else { return nil }
+        return UIImage(cgImage: cg, scale: UIScreen.main.scale, orientation: .up)
+    }
+}
+//
 //  DocumentRepositoryImpl.swift
 //  AezakmiTest
 //
@@ -466,11 +485,11 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
             throw NSError(domain: "Repo", code: 404, userInfo: [NSLocalizedDescriptionKey: "Not found"])
         }
 
-        // старый файл (удалим после успешного сохранения)
+        
         let oldResolvedURL = try? resolveURL(obj.fileURL)
 
-        // новые метаданные
-        obj.fileURL = newURL.lastPathComponent                  // <- храним только имя файла
+        
+        obj.fileURL = newURL.lastPathComponent
         obj.pageCount = Int16(pdf.pageCount(of: newURL))
         if let thumb = try? pdf.thumbNail(for: newURL, page: 0, size: CGSize(width: 160, height: 200)) {
             obj.thumbnail = thumb.pngData()
@@ -479,7 +498,7 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
         try context.save()
         reload()
 
-        // подчищаем старый физический файл
+        
         if let old = oldResolvedURL, old != newURL {
             try? fileStore.removeFile(at: old)
         }
@@ -488,18 +507,15 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
 
 // MARK: - Helpers
 private extension DocumentRepositoryImpl {
-
-    /// Собираем актуальный URL в текущем контейнере Documents из того,
-    /// что лежит в БД (имя файла или наследованный полный путь/URL).
     func resolveURL(_ stored: String) throws -> URL {
         let decoded = stored.removingPercentEncoding ?? stored
         let fileName: String
 
         if decoded.contains("/Documents/") {
-            // старый абсолютный путь (с UUID контейнера) -> берём только имя файла
+            
             fileName = (decoded as NSString).lastPathComponent
         } else if decoded.hasPrefix("file://") {
-            // старый file:// URL -> вытащим имя
+            
             fileName = (URL(string: decoded)?.lastPathComponent) ?? (decoded as NSString).lastPathComponent
         } else {
             // уже имя файла
@@ -510,13 +526,13 @@ private extension DocumentRepositoryImpl {
         return docs.appendingPathComponent(fileName)
     }
 
-    /// Сохраняем метаданные документа в Core Data и отдаём модель
+
     @discardableResult
     func persist(url: URL, suggestedName: String) throws -> Document {
         let e = DocumentEntity(context: context)
         e.id = UUID()
         e.name = suggestedName
-        e.fileURL = url.lastPathComponent          // <- храним только имя файла
+        e.fileURL = url.lastPathComponent
         e.createdAt = Date()
         e.pageCount = Int16(pdf.pageCount(of: url))
         if let thumb = try? pdf.thumbNail(for: url, page: 0, size: CGSize(width: 160, height: 200)) {
@@ -527,13 +543,11 @@ private extension DocumentRepositoryImpl {
         return map(e)
     }
 
-    /// Перечитываем список + выполняем мягкую миграцию старых записей
     func reload() {
         let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
         req.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         let objects = (try? context.fetch(req)) ?? []
 
-        // Миграция: абсолютные пути/URL -> только имя файла
         var changed = false
         for o in objects {
             let s = o.fileURL
@@ -574,37 +588,49 @@ private extension DocumentRepositoryImpl {
 import Foundation
 
 public class FileStore: FileStoreProtocol {
-   
-    
-    public init() {
-        
-    }
-    
+
+    public init() {}
+
     public func documentsDir() throws -> URL {
-        try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-    }
-    
-    public func uniquePDFURL(suggestedName: String?) throws -> URL {
-        let base = (suggestedName?.isEmpty == false ? suggestedName! : "Document")
-                   .replacingOccurrences(of: " ", with: "_")
-               let stamp = ISO8601DateFormatter().string(from: Date())
-               return try documentsDir().appendingPathComponent("\(base)_\(stamp).pdf")
-    }
-    
-    public func copyToSandbox(fileAt url: URL, suggestedName: String?) throws -> URL {
-        let suggested = suggestedName ?? url.deletingPathExtension().lastPathComponent
-              let dst = try uniquePDFURL(suggestedName: suggested)
-              try FileManager.default.copyItem(at: url, to: dst)
-              return dst
-    }
-    
-    public func removeFile(at url: URL) throws {
-        if FileManager.default.fileExists(atPath: url.path) {
-                   try FileManager.default.removeItem(at: url)
-               }
+        try FileManager.default.url(for: .documentDirectory,
+                                    in: .userDomainMask,
+                                    appropriateFor: nil,
+                                    create: true)
     }
 
-    
+    // Безопасный timestamp без двоеточий и прочих спец-символов
+    private func safeTimestamp() -> String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = TimeZone(secondsFromGMT: 0)
+        df.dateFormat = "yyyy-MM-dd_HH-mm-ss" // <-- НИКАКИХ ':'
+        return df.string(from: Date())
+    }
+
+    // Лёгкий санитайзер имени: пробелы -> '_'
+    private func sanitizeBaseName(_ name: String?) -> String {
+        let base = (name?.isEmpty == false ? name! : "Document")
+        return base.replacingOccurrences(of: " ", with: "_")
+    }
+
+    public func uniquePDFURL(suggestedName: String?) throws -> URL {
+        let base = sanitizeBaseName(suggestedName)
+        let stamp = safeTimestamp()
+        return try documentsDir().appendingPathComponent("\(base)_\(stamp).pdf")
+    }
+
+    public func copyToSandbox(fileAt url: URL, suggestedName: String?) throws -> URL {
+        let suggested = suggestedName ?? url.deletingPathExtension().lastPathComponent
+        let dst = try uniquePDFURL(suggestedName: suggested)
+        try FileManager.default.copyItem(at: url, to: dst)
+        return dst
+    }
+
+    public func removeFile(at url: URL) throws {
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
+    }
 }
 //
 //  DocumentRepositoryProtocol.swift
@@ -714,50 +740,44 @@ import PDFKit
 struct PDFKitView: UIViewRepresentable {
     let url: URL
     @Binding var currentPageIndex: Int
-    
+
     func makeUIView(context: Context) -> PDFView {
         let v = PDFView()
         v.autoScales = true
         v.displayMode = .singlePageContinuous
         v.delegate = context.coordinator
-
-        if let doc = PDFDocument(url: url) {
-            print("✅ Loaded PDF:", url.path, "pages =", doc.pageCount)
-            v.document = doc
-        } else {
-            print("❌ Cannot load PDF at", url.path)
-        }
-
+        v.document = PDFDocument(url: url)
         return v
     }
 
-   
     func updateUIView(_ uiView: PDFView, context: Context) {
         if uiView.document?.documentURL != url {
             uiView.document = PDFDocument(url: url)
         }
+        if let doc = uiView.document,
+           currentPageIndex >= 0,
+           currentPageIndex < doc.pageCount,
+           let page = doc.page(at: currentPageIndex),
+           uiView.currentPage != page {
+            uiView.go(to: page)
+        }
     }
-  
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
-    
-    final class Coordinator:NSObject, PDFViewDelegate {
+
+    final class Coordinator: NSObject, PDFViewDelegate {
         let parent: PDFKitView
-        init(_ parent: PDFKitView) {
-            self.parent = parent
-        }
-        
-        
+        init(_ parent: PDFKitView) { self.parent = parent }
+
         func pdfViewPageChanged(_ sender: PDFView) {
-            if let page = sender.currentPage,
-                let doc = sender.document {
-                    parent.currentPageIndex = doc.index(for: page)
-            }
+            guard let page = sender.currentPage,
+                  let doc = sender.document else { return }
+            parent.currentPageIndex = doc.index(for: page)
         }
     }
 }
-
 //
 //  ReaderView.swift
 //  AezakmiTest
@@ -778,58 +798,86 @@ struct ReaderView: View {
     @State var showAddTextSheet = false
     @State var newPageText: String = ""
     
+    @State private var showDeletePagePrompt: Bool = false
+    @State private var pageToDeleteText: String = ""
+    
     var body: some View {
         content
-        .navigationTitle(vm.document.name)
-        .toolbar { readerToolbar }
-        .alert("Нельзя удалить страницу", isPresented: $showCantDeleteAlert) {
-            Button("Ok", role: .cancel) {
-                
+            .navigationTitle(vm.document.name)
+            .toolbar { readerToolbar }
+            .alert("Нельзя удалить страницу", isPresented: $showCantDeleteAlert) {
+                Button("Ok", role: .cancel) {}
             }
-        }
-        .onChange(of: vm.errorMessage) { msg in
-            showError = ( msg != nil )
-            
-        }
-        .alert("Ошибка", isPresented: $showError) {
-            Button("Ok") { vm.errorMessage = nil }
-        } message: { Text(vm.errorMessage ?? "Неизвестная ошибка") }
+            .onChange(of: vm.errorMessage) { msg in
+                showError = (msg != nil)
+            }
+            .alert("Ошибка", isPresented: $showError) {
+                Button("Ok") { vm.errorMessage = nil }
+            } message: { Text(vm.errorMessage ?? "Неизвестная ошибка") }
             .sheet(isPresented: $showShare) {
-                if let url = vm.shareURL() {
-                    ShareSheet(activityItems: [url])
-                }
+                if let url = vm.shareURL() { ShareSheet(activityItems: [url]) }
             }
-            .sheet(isPresented: $showAddTextSheet) {
-                addTextSheet
-            }
+            .sheet(isPresented: $showAddTextSheet) { addTextSheet }
             .overlay { if vm.isBusy { BusyOverlay(title: "Обновление...") } }
+            .alert("Введите номер страницы", isPresented: $showDeletePagePrompt) {
+                TextField("Номер страницы", text: $pageToDeleteText)
+                    .keyboardType(.numberPad)
+                Button("Удалить") {
+                    if let index = Int(pageToDeleteText), index > 0 {
+                        vm.deletePage(at: index - 1) // индекс с 0
+                    } else {
+                        vm.errorMessage = "Введите корректный номер страницы"
+                        showError = true
+                    }
+                    pageToDeleteText = ""
+                }
+                Button("Отмена", role: .cancel) { pageToDeleteText = "" }
+            } message: {
+                Text("Введите номер страницы для удаления (1–\(vm.document.pageCount))")
+            }
     }
     
     private var content: some View {
-        VStack {
+        VStack(spacing: 0) {
             PDFKitView(url: vm.document.fileURL, currentPageIndex: $vm.currentPageIndex)
+            pageControl
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color(UIColor.secondarySystemBackground))
+        }
+    }
+    
+    private var pageControl: some View {
+        HStack(spacing: 12) {
+            Button {
+                vm.currentPageIndex = max(0, vm.currentPageIndex - 1)
+            } label: {
+                Image(systemName: "chevron.left")
+            }
+            .disabled(vm.currentPageIndex <= 0)
+            
+            Text("Стр. \(vm.currentPageIndex + 1) / \(max(1, vm.document.pageCount))")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+            
+            Button {
+                vm.currentPageIndex = min(max(0, vm.document.pageCount - 1), vm.currentPageIndex + 1)
+            } label: {
+                Image(systemName: "chevron.right")
+            }
+            .disabled(vm.currentPageIndex >= vm.document.pageCount - 1)
+            
+            Spacer()
         }
     }
     
     @ToolbarContentBuilder
     private var readerToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .navigationBarTrailing) {
-            Button("Добавить страницу") {
-                showAddTextSheet = true
-            }
-            Button("Повернуть") {
-                vm.rotateCurrentPage(clockwise: true)
-            }
-            Button("Удалить страницу") {
-                if vm.canDeleteCurrentPage() {
-                    vm.deleteCurrentPage()
-                } else {
-                    showCantDeleteAlert = true
-                }
-            }
-            Button("Поделиться") {
-                showShare = true
-            }
+            Button("Добавить страницу") { showAddTextSheet = true }
+            Button("Повернуть") { vm.rotateCurrentPage(clockwise: true) }
+            Button("Удалить страницу") { showDeletePagePrompt = true }
+            Button("Поделиться") { showShare = true }
         }
     }
     
@@ -846,11 +894,7 @@ struct ReaderView: View {
             }
             .navigationTitle("Новая страница")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Отмена") {
-                        showAddTextSheet = false
-                    }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Отмена") { showAddTextSheet = false } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Добавить") {
                         let text = newPageText
@@ -863,11 +907,7 @@ struct ReaderView: View {
             }
         }
     }
-    
-    
 }
-
-
 //
 //  ReaderViewModel.swift
 //  AezakmiTest
@@ -884,7 +924,8 @@ final class ReaderViewModel : ObservableObject {
     
     @Published var isBusy = false
     @Published var errorMessage: String?
-
+    
+    
     private let repo: DocumentRepositoryProtocol
     private let pdf: PDFServiceProtocol
     
@@ -899,36 +940,42 @@ final class ReaderViewModel : ObservableObject {
     func canDeleteCurrentPage() -> Bool {
         document.pageCount > 1 // не даю ему удалить последнюю старницу, потому что не хочу получить пустой документ
     }
-  
-    func deleteCurrentPage() {
-        guard canDeleteCurrentPage() else { return }
+    
+    func deletePage(at index: Int) {
+        guard index >= 0, index < document.pageCount else {
+            errorMessage = "Страница \(index + 1) вне диапазона (1–\(document.pageCount))"
+            return
+        }
+        if document.pageCount <= 1 {
+            errorMessage = "Нельзя удалить последнюю страницу"
+            return
+        }
+        
         isBusy = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             do {
-                let newURL = try pdf.removePage(at: currentPageIndex, in: document.fileURL)
+                let newURL = try pdf.removePage(at: index, in: document.fileURL)
                 try repo.replaceStoredFile(for: document.id, with: newURL)
                 let newCount = pdf.pageCount(of: newURL)
                 
-                DispatchQueue.main.async { [weak self] in
-                    guard let self = self else { return }
-                    document.fileURL = newURL
-                    document.pageCount = newCount
-                    if currentPageIndex >= document.pageCount {
-                        currentPageIndex = max(0, document.pageCount - 1)
-                    }
-                    isBusy = false
+                DispatchQueue.main.async {
+                    self.document.fileURL = newURL
+                    self.document.pageCount = newCount
+                    self.currentPageIndex = min(self.currentPageIndex, max(0, newCount - 1))
+                    self.isBusy = false
                 }
             } catch {
                 DispatchQueue.main.async {
-                    [weak self] in
-                    guard let self = self else { return }
-                    isBusy = false
-                    errorMessage = nil
+                    self.errorMessage = error.localizedDescription
+                    self.isBusy = false
                 }
-               
             }
         }
+    }
+    
+    func deleteCurrentPage() {
+        deletePage(at: currentPageIndex)
     }
     
     func rotateCurrentPage(clockwise: Bool = true) {
@@ -939,7 +986,7 @@ final class ReaderViewModel : ObservableObject {
                 let newURL = try pdf.rotatePage(at: currentPageIndex, in: document.fileURL, clockwise: true)
                 try repo.replaceStoredFile(for: document.id, with: newURL)
                 let newCount = pdf.pageCount(of: newURL)
-          
+                
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return }
                     document.fileURL = newURL
@@ -954,7 +1001,7 @@ final class ReaderViewModel : ObservableObject {
                 }
             }
         }
-     
+        
     }
     func addTextPage(_ text: String) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -1271,39 +1318,53 @@ struct WelcomeView: View {
 
 import UIKit
 import Combine
+import UniformTypeIdentifiers
 
 final class EditorViewModel: ObservableObject {
     @Published var pickedImages: [UIImage] = []
     @Published var importedFileURL: URL?
     @Published var createdDocument: Document?
-    
     @Published var isBusy: Bool = false
     @Published var errorMessage: String?
-    
+
     private let repo: DocumentRepositoryProtocol
- 
+
     init(repo: DocumentRepositoryProtocol) {
         self.repo = repo
     }
+
     func createPDF(name: String?) {
         guard !pickedImages.isEmpty || importedFileURL != nil else { return }
         isBusy = true
-        
         let title = (name?.isEmpty == false) ? name : nil
-        
+
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             do {
                 let doc: Document
-                
+
                 if !self.pickedImages.isEmpty {
-                    doc = try repo.createFromImages(pickedImages, name: name)
+                    doc = try self.repo.createFromImages(self.pickedImages, name: title)
                 } else if let url = self.importedFileURL {
-                    doc = try repo.importFile(url)
+                    let secured = url.startAccessingSecurityScopedResource()
+                    defer { if secured { url.stopAccessingSecurityScopedResource() } }
+
+                    let contentType = (try? url.resourceValues(forKeys: [.contentTypeKey]).contentType)
+
+                    if contentType == .pdf || url.pathExtension.lowercased() == "pdf" {
+                        doc = try self.repo.importFile(url)
+                    } else if contentType?.conforms(to: .image) == true {
+                        guard let img = FileImageLoader.loadFirstImage(from: url) else {
+                            throw NSError(domain: "EditorVM", code: -2, userInfo: [NSLocalizedDescriptionKey: "Не удалось прочитать изображение"])
+                        }
+                        doc = try self.repo.createFromImages([img], name: title)
+                    } else {
+                        throw NSError(domain: "EditorVM", code: -1, userInfo: [NSLocalizedDescriptionKey: "Неподдерживаемый тип файла"])
+                    }
                 } else {
-                    throw NSError(domain: "EditorVM", code: 0, userInfo: [NSLocalizedDescriptionKey:"No data"])
+                    throw NSError(domain: "EditorVM", code: 0, userInfo: [NSLocalizedDescriptionKey: "Нет данных для импорта"])
                 }
-                
+
                 DispatchQueue.main.async {
                     self.createdDocument = doc
                     self.isBusy = false
@@ -1314,12 +1375,6 @@ final class EditorViewModel: ObservableObject {
                     self.isBusy = false
                 }
             }
-        }
-        
-        func reset() {
-            pickedImages = []
-            importedFileURL = nil
-            createdDocument = nil
         }
     }
 }
@@ -1335,42 +1390,43 @@ import UniformTypeIdentifiers
 
 struct EditorView: View {
     @StateObject var vm: EditorViewModel
-    
+
     @State private var name: String = ""
     @State private var showPhotoPicker: Bool = false
     @State private var showFilePicker: Bool = false
     @State private var openReader: Bool = false
     @State private var showError: Bool = false
 
-    
     var body: some View {
         content
-        .navigationTitle("Editor")
-        .sheet(isPresented: $showPhotoPicker) {
-            PhotoPicker(images: $vm.pickedImages)
-        }
-        .sheet(isPresented: $showFilePicker) {
-            FilePicker(supportedTypes: [.pdf, .image], pickedURL: $vm.importedFileURL)
-        }
-        .onChange(of: vm.createdDocument){ doc in
-            openReader = ( doc != nil )
-        }
-        .background(readerLink)
-        //Ошибка
-        .onChange(of: vm.errorMessage) { msg in
-            showError = (msg != nil)
-        }
-        .alert("Ошибка", isPresented: $showError) {
-            Button("Ok", role: .cancel) { vm.errorMessage = nil }
-        } message: { Text(vm.errorMessage ?? "Неизвестная ошибка") }
-        .overlay { if vm.isBusy { BusyOverlay(title: "Создание PDF...") } }
-            
+            .navigationTitle("Editor")
+            .sheet(isPresented: $showPhotoPicker) {
+                PhotoPicker(images: $vm.pickedImages)
+            }
+            .sheet(isPresented: $showFilePicker) {
+                FilePicker(supportedTypes: [.pdf, .image], pickedURL: $vm.importedFileURL)
+            }
+            .onChange(of: vm.createdDocument) { doc in
+                openReader = (doc != nil)
+            }
+            .onChange(of: vm.importedFileURL) { url in
+                if let url { name = url.deletingPathExtension().lastPathComponent }
+            }
+            .background(readerLink)
+            .onChange(of: vm.errorMessage) { msg in
+                showError = (msg != nil)
+            }
+            .alert("Ошибка", isPresented: $showError) {
+                Button("Ok", role: .cancel) { vm.errorMessage = nil }
+            } message: { Text(vm.errorMessage ?? "Неизвестная ошибка") }
+            .overlay { if vm.isBusy { BusyOverlay(title: "Создание PDF...") } }
     }
-    
+
     private var content: some View {
         VStack(spacing: 12) {
-            TextField("Название документа.", text: $name)
+            TextField("Название документа", text: $name)
                 .textFieldStyle(.roundedBorder)
+                .disableAutocorrection(true)
             HStack {
                 Button("Выбрать из фото.") {
                     showPhotoPicker = true
@@ -1392,7 +1448,7 @@ struct EditorView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
-            
+
             Button("Сконвертировать / Сохранить") {
                 vm.createPDF(name: name.isEmpty ? nil : name)
                 openReader = true
@@ -1400,10 +1456,9 @@ struct EditorView: View {
             .buttonStyle(.borderedProminent)
             .disabled(vm.pickedImages.isEmpty && vm.importedFileURL == nil)
             Spacer()
-            
         }
     }
-    
+
     private var readerLink: some View {
         NavigationLink(isActive: $openReader) {
             readerDestination
@@ -1411,6 +1466,7 @@ struct EditorView: View {
             EmptyView()
         }
     }
+
     @ViewBuilder
     private var readerDestination: some View {
         if let doc = vm.createdDocument {
