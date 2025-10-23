@@ -45,21 +45,29 @@ struct LibraryView: View {
             }
         }
         .toolbar {
-            if vm.isMerging {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Отмена") {
-                        vm.cancelMerge()
-                    }
+                    if vm.isMerging {
+                        Button("Отмена") {
+                            vm.cancelMerge()
+                        }
+                    } else {
+                        EmptyView()
                 }
             }
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Library")
+        .alert("Ошбика", isPresented: $showError) {
+            Button("Ок") { vm.errorMessage = nil }
+        } message: {
+            Text(vm.errorMessage ?? "Неизвестная ошибка")
+        }
         .sheet(isPresented: $showShare) {
             if let url = shareURL {
                 ShareSheet(activityItems: [url])
             }
         }
+        .overlay { if vm.isBusy { BusyOverlay(title: "Обьединение...") }}
     }
     
 }

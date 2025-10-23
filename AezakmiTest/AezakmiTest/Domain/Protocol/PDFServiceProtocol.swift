@@ -16,4 +16,6 @@ public protocol PDFServiceProtocol {
     func merge(docs urls: [URL], suggestedName: String?) throws -> URL
     func pageCount(of pdfURL: URL) -> Int
     func rotatePage(at index: Int, in pdfURL: URL, clockwise: Bool) throws -> URL
+    func appendTextPage(text: String, in pdfURL: URL) throws -> URL
 }
+

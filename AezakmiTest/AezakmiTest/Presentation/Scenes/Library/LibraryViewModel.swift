@@ -15,6 +15,7 @@ final class LibraryViewModel: ObservableObject {
     //Merge state
     @Published var mergingSource: Document? = nil
     @Published var errorMessage: String? = nil
+    @Published var isBusy = false
   
     private var bag = Set<AnyCancellable>()
     private var repo: DocumentRepositoryProtocol
@@ -43,16 +44,28 @@ final class LibraryViewModel: ObservableObject {
         mergingSource = nil
     }
     
+    // LibraryViewModel.swift
     func selecTarget(_ target: Document) {
         guard let source = mergingSource, source.id != target.id else { return }
-        do {
-            _ = try repo.merge(source.id,
-                               target.id,
-                               name: "\(source.name)+\(target.name)")
-            
-        } catch {
-            errorMessage = error.localizedDescription
-            mergingSource = nil
+        isBusy = true
+        let name = source.name + target.name
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            defer { DispatchQueue.main.async { self.isBusy = false } }
+            do {
+                _ = try repo.merge(source.id, target.id, name: name)
+                DispatchQueue.main.async { [weak self] in
+                    self?.mergingSource = nil
+                    
+                }
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    self?.errorMessage = error.localizedDescription
+                    self?.mergingSource = nil
+                    
+                }
+            }
         }
     }
+
 }

@@ -13,20 +13,49 @@ final class EditorViewModel: ObservableObject {
     @Published var importedFileURL: URL?
     @Published var createdDocument: Document?
     
+    @Published var isBusy: Bool = false
+    @Published var errorMessage: String?
+    
     private let repo: DocumentRepositoryProtocol
  
     init(repo: DocumentRepositoryProtocol) {
         self.repo = repo
     }
     func createPDF(name: String?) {
-        do {
-            if !pickedImages.isEmpty {
-                createdDocument = try repo.createFromImages(pickedImages, name: name)
-            } else if let url = importedFileURL {
-                createdDocument = try repo.importFile(url)
+        guard !pickedImages.isEmpty || importedFileURL != nil else { return }
+        isBusy = true
+        
+        let title = (name?.isEmpty == false) ? name : nil
+        
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            do {
+                let doc: Document
+                
+                if !self.pickedImages.isEmpty {
+                    doc = try repo.createFromImages(pickedImages, name: name)
+                } else if let url = self.importedFileURL {
+                    doc = try repo.importFile(url)
+                } else {
+                    throw NSError(domain: "EditorVM", code: 0, userInfo: [NSLocalizedDescriptionKey:"No data"])
+                }
+                
+                DispatchQueue.main.async {
+                    self.createdDocument = doc
+                    self.isBusy = false
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.errorMessage = error.localizedDescription
+                    self.isBusy = false
+                }
             }
-        } catch {
-            print("Create PDF error: \(error)")
+        }
+        
+        func reset() {
+            pickedImages = []
+            importedFileURL = nil
+            createdDocument = nil
         }
     }
 }

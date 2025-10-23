@@ -32,6 +32,7 @@
 		A35FF2D92EA921AA0000E890 /* ReaderContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2D82EA9219F0000E890 /* ReaderContainer.swift */; };
 		A35FF2DB2EA9261A0000E890 /* PDFKitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2DA2EA926160000E890 /* PDFKitView.swift */; };
 		A35FF2DE2EA9290C0000E890 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2DD2EA929060000E890 /* ShareSheet.swift */; };
+		A35FF2E02EAA292F0000E890 /* BusyOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2DF2EAA29290000E890 /* BusyOverlay.swift */; };
 		A39406B02EA7894300ED4787 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A39406AB2EA7894300ED4787 /* Assets.xcassets */; };
 		A39406B22EA7894300ED4787 /* AezakmiTestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39406AA2EA7894300ED4787 /* AezakmiTestApp.swift */; };
 		A39406BB2EA789CD00ED4787 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39406B82EA789CD00ED4787 /* RootView.swift */; };
@@ -64,6 +65,7 @@
 		A35FF2D82EA9219F0000E890 /* ReaderContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderContainer.swift; sourceTree = "<group>"; };
 		A35FF2DA2EA926160000E890 /* PDFKitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFKitView.swift; sourceTree = "<group>"; };
 		A35FF2DD2EA929060000E890 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
+		A35FF2DF2EAA29290000E890 /* BusyOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusyOverlay.swift; sourceTree = "<group>"; };
 		A39406922EA788FD00ED4787 /* AezakmiTest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AezakmiTest.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A39406AA2EA7894300ED4787 /* AezakmiTestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AezakmiTestApp.swift; sourceTree = "<group>"; };
 		A39406AB2EA7894300ED4787 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -173,6 +175,7 @@
 		A35FF2DC2EA928F90000E890 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				A35FF2DF2EAA29290000E890 /* BusyOverlay.swift */,
 				A35FF2DD2EA929060000E890 /* ShareSheet.swift */,
 			);
 			path = Components;
@@ -361,6 +364,7 @@
 				A35FF2CF2EA906E40000E890 /* EditorViewModel.swift in Sources */,
 				A35FF2B52EA7E2080000E890 /* PDFServiceProtocol.swift in Sources */,
 				A35FF2D72EA91F630000E890 /* FilePicker.swift in Sources */,
+				A35FF2E02EAA292F0000E890 /* BusyOverlay.swift in Sources */,
 				A35FF2CD2EA906CB0000E890 /* ReaderView.swift in Sources */,
 				A35FF2B72EA7E32A0000E890 /* FileStore.swift in Sources */,
 				A35FF2BA2EA7E5090000E890 /* PDFService.swift in Sources */,
@@ -528,6 +532,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -560,6 +565,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

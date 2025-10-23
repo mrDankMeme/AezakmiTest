@@ -15,9 +15,34 @@ struct EditorView: View {
     @State private var showPhotoPicker: Bool = false
     @State private var showFilePicker: Bool = false
     @State private var openReader: Bool = false
+    @State private var showError: Bool = false
 
     
     var body: some View {
+        content
+        .navigationTitle("Editor")
+        .sheet(isPresented: $showPhotoPicker) {
+            PhotoPicker(images: $vm.pickedImages)
+        }
+        .sheet(isPresented: $showFilePicker) {
+            FilePicker(supportedTypes: [.pdf, .image], pickedURL: $vm.importedFileURL)
+        }
+        .onChange(of: vm.createdDocument){ doc in
+            openReader = ( doc != nil )
+        }
+        .background(readerLink)
+        //Ошибка
+        .onChange(of: vm.errorMessage) { msg in
+            showError = (msg != nil)
+        }
+        .alert("Ошибка", isPresented: $showError) {
+            Button("Ok", role: .cancel) { vm.errorMessage = nil }
+        } message: { Text(vm.errorMessage ?? "Неизвестная ошибка") }
+        .overlay { if vm.isBusy { BusyOverlay(title: "Создание PDF...") } }
+            
+    }
+    
+    private var content: some View {
         VStack(spacing: 12) {
             TextField("Название документа.", text: $name)
                 .textFieldStyle(.roundedBorder)
@@ -52,24 +77,21 @@ struct EditorView: View {
             Spacer()
             
         }
-        .padding()
-        .navigationTitle("Editor")
-        .sheet(isPresented: $showPhotoPicker) {
-            PhotoPicker(images: $vm.pickedImages)
+    }
+    
+    private var readerLink: some View {
+        NavigationLink(isActive: $openReader) {
+            readerDestination
+        } label: {
+            EmptyView()
         }
-        .sheet(isPresented: $showFilePicker) {
-            FilePicker(supportedTypes: [.pdf, .image], pickedURL: $vm.importedFileURL)
+    }
+    @ViewBuilder
+    private var readerDestination: some View {
+        if let doc = vm.createdDocument {
+            ReaderContainer(document: doc)
+        } else {
+            EmptyView()
         }
-        .background(
-            NavigationLink(isActive: $openReader) {
-                if let doc = vm.createdDocument {
-                    ReaderContainer(document: doc)
-                } else {
-                    EmptyView()
-                }
-            } label: {
-                EmptyView()
-            }
-        )
     }
 }

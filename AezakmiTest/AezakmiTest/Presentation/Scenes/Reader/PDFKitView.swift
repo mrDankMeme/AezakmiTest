@@ -17,9 +17,17 @@ struct PDFKitView: UIViewRepresentable {
         v.autoScales = true
         v.displayMode = .singlePageContinuous
         v.delegate = context.coordinator
-        v.document = PDFDocument(url: url)
+
+        if let doc = PDFDocument(url: url) {
+            print("✅ Loaded PDF:", url.path, "pages =", doc.pageCount)
+            v.document = doc
+        } else {
+            print("❌ Cannot load PDF at", url.path)
+        }
+
         return v
     }
+
    
     func updateUIView(_ uiView: PDFView, context: Context) {
         if uiView.document?.documentURL != url {

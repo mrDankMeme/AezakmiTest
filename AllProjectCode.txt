@@ -180,14 +180,14 @@ public struct PDFService : PDFServiceProtocol {
     }
     
     public func createPDF(from images: [UIImage], suggestedName: String?) throws -> URL {
-     
+        
         guard !images.isEmpty else {
             throw makeError("no images to render")
         }
-      
+        
         let fileStore = FileStore()
         let dst = try fileStore.uniquePDFURL(suggestedName: suggestedName)
-       
+        
         // A4 @72dpi
         let pageRect : CGRect = CGRect(x: 0, y: 0, width: 595, height: 842)
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
@@ -208,8 +208,10 @@ public struct PDFService : PDFServiceProtocol {
     
     // Копируем существующий PDF в песочницу (Documents/)
     public func importPDF(from url: URL) throws -> URL {
-        try FileStore().copyToSandbox(fileAt: url, suggestedName: url.deletingLastPathComponent().lastPathComponent )
+        let base = url.deletingPathExtension().lastPathComponent
+        return try FileStore().copyToSandbox(fileAt: url, suggestedName: base)
     }
+
     
     // Миниатюра первой (или заданной) страницы
     public func thumbNail(for pdfUrl: URL, page: Int, size: CGSize) throws -> UIImage {
@@ -222,11 +224,11 @@ public struct PDFService : PDFServiceProtocol {
         
         return p.thumbnail(of: size, for: .cropBox)
     }
-  
+    
     //Удаление страницы и пересохранение в новый файл
     public func removePage(at index: Int, in PDFurl: URL) throws -> URL {
         guard let doc = PDFDocument(url: PDFurl) else {
-        throw makeError("Cannot open PDF")
+            throw makeError("Cannot open PDF")
         }
         guard index>=0, index<doc.pageCount else {
             throw makeError("Page out of range")
@@ -238,42 +240,117 @@ public struct PDFService : PDFServiceProtocol {
         try write(doc: doc, to: outURL)
         return outURL
     }
- 
+    
     //Обьединение нескольких PDF в один (пока только зачаток)
     public func merge(docs urls: [URL], suggestedName: String?) throws -> URL {
-        let out = PDFDocument()
-        var cursor = 0
-        
+        let outDoc = PDFDocument()
+        var insertIndex = 0
+
         for url in urls {
-            guard let d = PDFDocument(url: url) else {
-                continue
-            }
-            for i in 0..<d.pageCount {
-                if let page = d.page(at: i) {
-                    out.insert(page, at: cursor)
-                    cursor += 1
+            guard let src = PDFDocument(url: url) else { continue }
+            let count = src.pageCount
+            guard count > 0 else { continue }
+
+            for i in 0..<count {
+                if let page = src.page(at: i) {
+                    outDoc.insert(page, at: insertIndex)
+                    insertIndex += 1
                 }
             }
-                    
         }
-        let outURL = try FileStore().uniquePDFURL(suggestedName: suggestedName ?? "Merged")
-        try write(doc: out, to: outURL)
+
+        guard insertIndex > 0 else {
+            throw makeError("No pages to merge")
+        }
+
+        let base = (suggestedName?.isEmpty == false)
+            ? suggestedName!
+            : "Merged-\(Int(Date().timeIntervalSince1970))"
+
+        let outURL = try FileStore().uniquePDFURL(suggestedName: base)
+        try write(doc: outDoc, to: outURL)
         return outURL
-        
     }
-    
+
     public func pageCount(of pdfURL: URL) -> Int {
         return PDFDocument(url: pdfURL)?.pageCount ?? 0
+    }
+    
+    // Поворачиваем странчку на 90 градусов
+    public func rotatePage(at index: Int, in pdfURL: URL, clockwise: Bool) throws -> URL {
+        guard let doc = PDFDocument(url: pdfURL) else {
+            throw makeError("Не могу открыть PDF файл.")
+        }
+        guard let page = doc.page(at: index) else {
+            throw makeError("Индекс аут от рендж.")
+        }
+        
+        let current = page.rotation
+        let delta = clockwise ? 90 : -90
+        var newRotation = (current + delta) % 360
+        if newRotation < 0 { newRotation += 360 }
+        page.rotation = newRotation
+        
+        let outURL = try FileStore().uniquePDFURL(suggestedName: pdfURL.deletingPathExtension().lastPathComponent)
+        try write(doc: doc, to: outURL)
+        return outURL
+    }
+    
+    public func appendTextPage(text: String, in pdfURL: URL) throws -> URL {
+        guard let doc = PDFDocument(url: pdfURL) else {
+            throw makeError("Не могу открыть PDF файл.")
+        }
+        // Рисуем
+        let pageRect = CGRect(x: 0, y: 0, width: 595.0, height: 842.0)
+        UIGraphicsBeginImageContextWithOptions(pageRect.size, true, 1)
+        defer { UIGraphicsEndImageContext() }
+        // Фон
+        UIColor.white.setFill()
+        UIRectFill(pageRect)
+        
+        // атрибуты текста
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .left
+        paragraph.lineBreakMode = .byWordWrapping
+        
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 16),
+            .foregroundColor: UIColor.black,
+            .paragraphStyle: paragraph
+        ]
+        
+        // поля страницы
+        let insetRect = pageRect.insetBy(dx: 32, dy: 32)
+        let ns = text as NSString
+        
+        // многострочный вывод в прямоугольник
+        ns.draw(in: insetRect,withAttributes: attrs)
+        
+        guard let img = UIGraphicsGetImageFromCurrentImageContext() else {
+            throw makeError("Failed to render text page")
+        }
+        
+        //Создаем PDFPage из изображения и добавляем в документ
+        guard let page = PDFPage(image: img) else {
+            throw makeError("Failed to create PDFPage from image")
+        }
+        doc.insert(page, at: doc.pageCount)
+        
+        //сохраняем в новый файл
+        let base = pdfURL.deletingPathExtension().lastPathComponent
+        let outURL = try FileStore().uniquePDFURL(suggestedName: base)
+        try write(doc: doc, to: outURL)
+        return outURL
     }
 }
 
 //MARK: - Helpers
 private extension PDFService {
     private func write(doc: PDFDocument, to url: URL) throws {
-          guard doc.write(to: url) else {
-              throw makeError("Failed to write PDF")
-          }
-      }
+        guard doc.write(to: url) else {
+            throw makeError("Failed to write PDF")
+        }
+    }
     func aspectFitRect(imageSize: CGSize, in bounds: CGRect) -> CGRect {
         guard imageSize.width > 0, imageSize.height > 0 else { return bounds }
         let scale = min(bounds.width / imageSize.width, bounds.height / imageSize.height)
@@ -312,6 +389,7 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
         self.context = context
         self.fileStore = fileStore
         self.pdf = pdf
+        reload()
     }
     
     func list() -> AnyPublisher<[Document], Never> {
@@ -337,7 +415,7 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
         
         if let obj = try context.fetch(req).first {
             let s = obj.fileURL
-            if let url = URL(string: s) {
+            if let url = decodeFileURL(obj.fileURL) {
                 try fileStore.removeFile(at: url)
             }
             context.delete(obj)
@@ -351,7 +429,7 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
         req.predicate = NSPredicate(format: "id = %@", id as CVarArg)
         
         guard let obj = try context.fetch(req).first,
-              let url = URL(string: obj.fileURL) else {
+              let url = decodeFileURL(obj.fileURL) else {
             throw NSError(domain: "Repo", code: 404, userInfo: [NSLocalizedDescriptionKey: "Not found"])
         }
         return url
@@ -371,9 +449,8 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
         let req : NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
         req.predicate = NSPredicate(format: "id = %@", id as CVarArg)
         guard let obj = try context.fetch(req).first,
-              let url = URL(string: obj.fileURL) else {
-                 return
-              }
+              let url = decodeFileURL(obj.fileURL) else { return }
+
         if obj.thumbnail == nil {
             let img = try pdf.thumbNail(for: url, page: 0, size: CGSize(width: 160 , height: 200))
             obj.thumbnail = img.pngData()
@@ -381,17 +458,51 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
             reload()
         }
     }
+    
+    func replaceStoredFile(for id: UUID, with newURL: URL) throws {
+        let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "id = %@", id as CVarArg)
+        
+        guard let obj = try context.fetch(req).first else {
+           throw NSError(domain: "Repo", code: 404, userInfo: [NSLocalizedDescriptionKey: "Not found"])
+        }
+        //старый путь (чтобы удалить после успешного сохранения)
+        let oldURL = decodeFileURL(obj.fileURL)
+        
+        //новые метаданные
+        obj.fileURL = newURL.absoluteString
+        obj.pageCount = Int16(pdf.pageCount(of: newURL))
+        if let thumb = try? pdf.thumbNail(for: newURL, page: 0, size: CGSize(width: 160, height: 200)) {
+            obj.thumbnail = thumb.pngData()
+        }
+        try context.save()
+        reload()
+        
+        if let old = oldURL, old != newURL {
+            try? fileStore.removeFile(at: old)
+        }
+        
+    }
 }
 
 // MARK: - Helpers
 private extension DocumentRepositoryImpl {
+    private func decodeFileURL(_ s: String) -> URL? {
+        if s.hasPrefix("file://") {
+            return URL(string: s)
+        } else {
+            return URL(fileURLWithPath: s)
+        }
+    }
+
+    
     @discardableResult
     private func persist(url: URL, suggestedName:String) throws -> Document {
         let e = DocumentEntity(context: context)
         e.id = UUID()
         e.name = suggestedName
-        e.createdAt = Date()
         e.fileURL = url.absoluteString
+        e.createdAt = Date()
         e.pageCount = Int16(pdf.pageCount(of: url))
         if let thumb = try? pdf.thumbNail(for: url, page: 0, size: CGSize(width: 160, height: 200)) {
             e.thumbnail = thumb.pngData()
@@ -409,7 +520,7 @@ private extension DocumentRepositoryImpl {
     }
     
     func map(_ e: DocumentEntity) -> Document {
-        let url = URL(string: e.fileURL) ?? URL(fileURLWithPath: "/dev/null")
+        let url = decodeFileURL(e.fileURL) ?? URL(fileURLWithPath: "/dev/null")
         let img = e.thumbnail.flatMap(UIImage.init(data:))
         return Document(id: e.id,
                         name: e.name,
@@ -418,6 +529,7 @@ private extension DocumentRepositoryImpl {
                         pageCount: Int(e.pageCount),
                         thumbNail: img)
     }
+
 }
 //
 //  FileStore.swift
@@ -483,10 +595,12 @@ public protocol DocumentRepositoryProtocol {
     //операции
     func delete(id: UUID) throws
     func shareURL(for id: UUID) throws -> URL
+    func replaceStoredFile(for id: UUID, with newURL: URL) throws
     
     //пригодится позже
     func merge(_ a: UUID, _ b: UUID, name: String?) throws -> Document
     func updateThumbnailIfNeeded(for id: UUID) throws
+    
     
 }
 //
@@ -522,7 +636,10 @@ public protocol PDFServiceProtocol {
     func removePage(at: Int, in PDFurl: URL) throws -> URL
     func merge(docs urls: [URL], suggestedName: String?) throws -> URL
     func pageCount(of pdfURL: URL) -> Int
+    func rotatePage(at index: Int, in pdfURL: URL, clockwise: Bool) throws -> URL
+    func appendTextPage(text: String, in pdfURL: URL) throws -> URL
 }
+
 //
 //  Document.swift
 //  AezakmiTest
@@ -616,39 +733,97 @@ struct ReaderView: View {
     @StateObject var vm: ReaderViewModel
     @State var showShare: Bool = false
     @State var showCantDeleteAlert: Bool = false
- 
+    @State var showError = false
+    @State var showAddTextSheet = false
+    @State var newPageText: String = ""
+    
     var body: some View {
-        VStack {
-            PDFKitView(url: vm.document.fileURL, currentPageIndex: $vm.currentPageIndex)
-        }
+        content
         .navigationTitle(vm.document.name)
-        .toolbar {
-            ToolbarItemGroup(placement: .navigationBarTrailing) {
-                Button("Удалить страницу") {
-                    if vm.canDeleteCurrentPage() {
-                        vm.deleteCurrentPage()
-                    } else {
-                        showCantDeleteAlert = true
-                    }
-                }
-                Button("Поделиться") {
-                    showShare = true
-                }
-                
-            }
-        }
+        .toolbar { readerToolbar }
         .alert("Нельзя удалить страницу", isPresented: $showCantDeleteAlert) {
             Button("Ok", role: .cancel) {
                 
             }
         }
-        .sheet(isPresented: $showShare) {
-            if let url = vm.shareURL() {
-                ShareSheet(activityItems: [url])
-            }
+        .onChange(of: vm.errorMessage) { msg in
+            showError = ( msg != nil )
             
         }
+        .alert("Ошибка", isPresented: $showError) {
+            Button("Ok") { vm.errorMessage = nil }
+        } message: { Text(vm.errorMessage ?? "Неизвестная ошибка") }
+            .sheet(isPresented: $showShare) {
+                if let url = vm.shareURL() {
+                    ShareSheet(activityItems: [url])
+                }
+            }
+            .sheet(isPresented: $showAddTextSheet) {
+                addTextSheet
+            }
+            .overlay { if vm.isBusy { BusyOverlay(title: "Обновление...") } }
     }
+    
+    private var content: some View {
+        VStack {
+            PDFKitView(url: vm.document.fileURL, currentPageIndex: $vm.currentPageIndex)
+        }
+    }
+    
+    @ToolbarContentBuilder
+    private var readerToolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .navigationBarTrailing) {
+            Button("Добавить страницу") {
+                showAddTextSheet = true
+            }
+            Button("Повернуть") {
+                vm.rotateCurrentPage(clockwise: true)
+            }
+            Button("Удалить страницу") {
+                if vm.canDeleteCurrentPage() {
+                    vm.deleteCurrentPage()
+                } else {
+                    showCantDeleteAlert = true
+                }
+            }
+            Button("Поделиться") {
+                showShare = true
+            }
+        }
+    }
+    
+    private var addTextSheet: some View {
+        NavigationView {
+            VStack {
+                TextEditor(text: $newPageText)
+                    .font(.body)
+                    .padding()
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .cornerRadius(18)
+                    .padding()
+                Spacer()
+            }
+            .navigationTitle("Новая страница")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена") {
+                        showAddTextSheet = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Добавить") {
+                        let text = newPageText
+                        newPageText = ""
+                        showAddTextSheet = false
+                        vm.addTextPage(text)
+                    }
+                    .disabled(newPageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+    }
+    
+    
 }
 
 
@@ -666,6 +841,9 @@ final class ReaderViewModel : ObservableObject {
     @Published private(set) var document: Document
     @Published var currentPageIndex: Int = 0
     
+    @Published var isBusy = false
+    @Published var errorMessage: String?
+
     private let repo: DocumentRepositoryProtocol
     private let pdf: PDFServiceProtocol
     
@@ -680,15 +858,93 @@ final class ReaderViewModel : ObservableObject {
     func canDeleteCurrentPage() -> Bool {
         document.pageCount > 1 // не даю ему удалить последнюю старницу, потому что не хочу получить пустой документ
     }
+  
     func deleteCurrentPage() {
-        do {
-            let newURL = try pdf.removePage(at: currentPageIndex, in: document.fileURL)
-            document.fileURL = newURL
-            document.pageCount = pdf.pageCount(of: newURL)
-            try repo.updateThumbnailIfNeeded(for: document.id)
-        } catch {
-            print("Delete page error: \(error)")
+        guard canDeleteCurrentPage() else { return }
+        isBusy = true
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            do {
+                let newURL = try pdf.removePage(at: currentPageIndex, in: document.fileURL)
+                try repo.replaceStoredFile(for: document.id, with: newURL)
+                let newCount = pdf.pageCount(of: newURL)
+                
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    document.fileURL = newURL
+                    document.pageCount = newCount
+                    if currentPageIndex >= document.pageCount {
+                        currentPageIndex = max(0, document.pageCount - 1)
+                    }
+                    isBusy = false
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    [weak self] in
+                    guard let self = self else { return }
+                    isBusy = false
+                    errorMessage = nil
+                }
+               
+            }
         }
+    }
+    
+    func rotateCurrentPage(clockwise: Bool = true) {
+        isBusy = true
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            do {
+                let newURL = try pdf.rotatePage(at: currentPageIndex, in: document.fileURL, clockwise: true)
+                try repo.replaceStoredFile(for: document.id, with: newURL)
+                let newCount = pdf.pageCount(of: newURL)
+          
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    document.fileURL = newURL
+                    document.pageCount = newCount
+                    isBusy = false
+                }
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    errorMessage = nil
+                    isBusy = false
+                }
+            }
+        }
+     
+    }
+    func addTextPage(_ text: String) {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        
+        isBusy = true
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            do {
+                let newURL = try pdf.appendTextPage(text: text, in: document.fileURL)
+                try self.repo.replaceStoredFile(for: self.document.id, with: newURL)
+                let newCount = self.pdf.pageCount(of: newURL)
+                
+                
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    document.fileURL = newURL
+                    document.pageCount = newCount
+                    currentPageIndex = max (0, newCount - 1)
+                    isBusy = false
+                }
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    errorMessage = error.localizedDescription
+                    isBusy = false
+                }
+            }
+        }
+        
     }
     
     func shareURL() -> URL? {
@@ -744,6 +1000,12 @@ import Combine
 
 final class LibraryViewModel: ObservableObject {
     @Published var docs: [Document] = []
+    
+    //Merge state
+    @Published var mergingSource: Document? = nil
+    @Published var errorMessage: String? = nil
+    @Published var isBusy = false
+  
     private var bag = Set<AnyCancellable>()
     private var repo: DocumentRepositoryProtocol
     
@@ -759,6 +1021,42 @@ final class LibraryViewModel: ObservableObject {
     
     func delete(_ id: UUID) { try? repo.delete(id: id)}
     func shareURL(_ id: UUID) -> URL? { try? repo.shareURL(for: id)}
+    
+    //MARK: - Merge
+    var isMerging: Bool { mergingSource != nil }
+    
+    func beginMerge(from doc: Document) {
+        mergingSource = doc
+    }
+    
+    func cancelMerge() {
+        mergingSource = nil
+    }
+    
+    // LibraryViewModel.swift
+    func selecTarget(_ target: Document) {
+        guard let source = mergingSource, source.id != target.id else { return }
+        isBusy = true
+        let name = source.name + target.name
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            defer { DispatchQueue.main.async { self.isBusy = false } }
+            do {
+                _ = try repo.merge(source.id, target.id, name: name)
+                DispatchQueue.main.async { [weak self] in
+                    self?.mergingSource = nil
+                    
+                }
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    self?.errorMessage = error.localizedDescription
+                    self?.mergingSource = nil
+                    
+                }
+            }
+        }
+    }
+
 }
 //
 //  LibraryView.swift
@@ -774,6 +1072,7 @@ struct LibraryView: View {
     @StateObject var vm: LibraryViewModel
     @State private var shareURL: URL?
     @State private var showShare: Bool = false
+    @State private var showError: Bool = false
     
     var body: some View {
         List {
@@ -783,52 +1082,101 @@ struct LibraryView: View {
                         .foregroundColor(.secondary)
                 }
             } else {
+                if let src = vm.mergingSource {
+                    Section {
+                        Text("Выберите второй документ для обьединения с \(src.name)")
+                            .font(.subheadline).foregroundColor(.secondary)
+                    }
+                }
                 ForEach(vm.docs) { doc in
-                    HStack {
-                        if let img = doc.thumbNail {
-                            Image(uiImage: img)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 40,
-                                       height: 52)
-                                .clipped()
-                                .cornerRadius(6)
-                        } else {
-                            Rectangle()
-                                .fill(Color.secondary.opacity(0.2))
-                                .frame(width: 40, height: 52)
-                                .cornerRadius(6)
-                        }
-                        VStack(alignment: .leading) {
-                            Text(doc.name).font(.headline)
-                            Text("\(doc.createdAt.formatted(date: .abbreviated, time: .shortened))")
-                                .foregroundColor(.secondary)
-                                .font(.subheadline)
-                        }
-                        Spacer()
-                    }
-                    .contextMenu {
-                        Button("Поделиться") {
-                            if let url = vm.shareURL(doc.id) {
-                                //TODO: present share
+                    row(for:doc)
+                        .disabled(vm.isMerging)
+                        .overlay(
+                            Group {
+                                if vm.isMerging {
+                                    Color.clear
+                                        .contentShape(Rectangle())
+                                        .onTapGesture { vm.selecTarget(doc) }
+                                }
                             }
+                        )
+                    
+                }
+            }
+        }
+        .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if vm.isMerging {
+                        Button("Отмена") {
+                            vm.cancelMerge()
                         }
-                        Button("Удалить", role: .destructive) {
-                            vm.delete(doc.id)
-                        }
-                    }
+                    } else {
+                        EmptyView()
                 }
             }
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Library")
+        .alert("Ошбика", isPresented: $showError) {
+            Button("Ок") { vm.errorMessage = nil }
+        } message: {
+            Text(vm.errorMessage ?? "Неизвестная ошибка")
+        }
         .sheet(isPresented: $showShare) {
             if let url = shareURL {
                 ShareSheet(activityItems: [url])
             }
         }
+        .overlay { if vm.isBusy { BusyOverlay(title: "Обьединение...") }}
     }
     
+}
+
+private extension LibraryView {
+    func row(for doc: Document) -> some View {
+        NavigationLink(destination: ReaderContainer(document: doc)) {
+            HStack(spacing:12) {
+                //thumbNail
+                if let img = doc.thumbNail {
+                    Image(uiImage: img).resizable().scaledToFill()
+                        .frame(width: 40,height: 52).cornerRadius(6)
+                } else {
+                    Rectangle().fill(.secondary.opacity(0.2)).frame(width: 40,height: 52).cornerRadius(6)
+                }
+                
+                //meta
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(doc.name).font(.headline)
+                        if vm.mergingSource?.id == doc.id {
+                            Text("①").font(.caption)
+                                .padding(.horizontal, 6)
+                                .background(Color.blue.opacity(0.15))
+                                .cornerRadius(4)
+                        }
+                        Text("\(doc.createdAt.formatted(date: .abbreviated, time: .shortened)) • pdf • \(doc.pageCount) стр.")
+                            .foregroundColor(.secondary)
+                            .font(.subheadline)
+                    }
+                    Spacer()
+                }
+            }
+            .contextMenu {
+                Button("Поделиться") {
+                    if let url = vm.shareURL(doc.id) {
+                        shareURL = url
+                        showShare = true
+                    }
+                }
+                Button("Удалить", role: .destructive) {
+                    vm.delete(doc.id)
+                }
+                Button("Обьединить") {
+                    vm.beginMerge(from: doc)
+                }
+            }
+        }
+    }
 }
 
 private extension LibraryItem {
@@ -888,20 +1236,49 @@ final class EditorViewModel: ObservableObject {
     @Published var importedFileURL: URL?
     @Published var createdDocument: Document?
     
+    @Published var isBusy: Bool = false
+    @Published var errorMessage: String?
+    
     private let repo: DocumentRepositoryProtocol
  
     init(repo: DocumentRepositoryProtocol) {
         self.repo = repo
     }
     func createPDF(name: String?) {
-        do {
-            if !pickedImages.isEmpty {
-                createdDocument = try repo.createFromImages(pickedImages, name: name)
-            } else if let url = importedFileURL {
-                createdDocument = try repo.importFile(url)
+        guard !pickedImages.isEmpty || importedFileURL != nil else { return }
+        isBusy = true
+        
+        let title = (name?.isEmpty == false) ? name : nil
+        
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            do {
+                let doc: Document
+                
+                if !self.pickedImages.isEmpty {
+                    doc = try repo.createFromImages(pickedImages, name: name)
+                } else if let url = self.importedFileURL {
+                    doc = try repo.importFile(url)
+                } else {
+                    throw NSError(domain: "EditorVM", code: 0, userInfo: [NSLocalizedDescriptionKey:"No data"])
+                }
+                
+                DispatchQueue.main.async {
+                    self.createdDocument = doc
+                    self.isBusy = false
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.errorMessage = error.localizedDescription
+                    self.isBusy = false
+                }
             }
-        } catch {
-            print("Create PDF error: \(error)")
+        }
+        
+        func reset() {
+            pickedImages = []
+            importedFileURL = nil
+            createdDocument = nil
         }
     }
 }
@@ -922,9 +1299,34 @@ struct EditorView: View {
     @State private var showPhotoPicker: Bool = false
     @State private var showFilePicker: Bool = false
     @State private var openReader: Bool = false
+    @State private var showError: Bool = false
 
     
     var body: some View {
+        content
+        .navigationTitle("Editor")
+        .sheet(isPresented: $showPhotoPicker) {
+            PhotoPicker(images: $vm.pickedImages)
+        }
+        .sheet(isPresented: $showFilePicker) {
+            FilePicker(supportedTypes: [.pdf, .image], pickedURL: $vm.importedFileURL)
+        }
+        .onChange(of: vm.createdDocument){ doc in
+            openReader = ( doc != nil )
+        }
+        .background(readerLink)
+        //Ошибка
+        .onChange(of: vm.errorMessage) { msg in
+            showError = (msg != nil)
+        }
+        .alert("Ошибка", isPresented: $showError) {
+            Button("Ok", role: .cancel) { vm.errorMessage = nil }
+        } message: { Text(vm.errorMessage ?? "Неизвестная ошибка") }
+        .overlay { if vm.isBusy { BusyOverlay(title: "Создание PDF...") } }
+            
+    }
+    
+    private var content: some View {
         VStack(spacing: 12) {
             TextField("Название документа.", text: $name)
                 .textFieldStyle(.roundedBorder)
@@ -959,25 +1361,22 @@ struct EditorView: View {
             Spacer()
             
         }
-        .padding()
-        .navigationTitle("Editor")
-        .sheet(isPresented: $showPhotoPicker) {
-            PhotoPicker(images: $vm.pickedImages)
+    }
+    
+    private var readerLink: some View {
+        NavigationLink(isActive: $openReader) {
+            readerDestination
+        } label: {
+            EmptyView()
         }
-        .sheet(isPresented: $showFilePicker) {
-            FilePicker(supportedTypes: [.pdf, .image], pickedURL: $vm.importedFileURL)
+    }
+    @ViewBuilder
+    private var readerDestination: some View {
+        if let doc = vm.createdDocument {
+            ReaderContainer(document: doc)
+        } else {
+            EmptyView()
         }
-        .background(
-            NavigationLink(isActive: $openReader) {
-                if let doc = vm.createdDocument {
-                    ReaderContainer(document: doc)
-                } else {
-                    EmptyView()
-                }
-            } label: {
-                EmptyView()
-            }
-        )
     }
 }
 //
@@ -1081,6 +1480,32 @@ struct PhotoPicker: UIViewControllerRepresentable {
 }
 
 
+//
+//  BusyOverlay.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/23/25.
+//
+
+import SwiftUI
+
+struct BusyOverlay: View {
+    var title: String = "Обработка..."
+    var body : some View {
+        ZStack {
+            Color(.black).opacity(0.2).ignoresSafeArea()
+            VStack(spacing: 12) {
+                ProgressView()
+                Text(title).font(.subheadline)
+            }
+            .padding(16)
+            .background(.ultraThinMaterial)
+            .cornerRadius(12)
+        }
+        .transition(.opacity)
+        .animation(.easeInOut,value: UUID())
+    }
+}
 //
 //  ShareSheet.swift
 //  AezakmiTest
