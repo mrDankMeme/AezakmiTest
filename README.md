@@ -108,56 +108,66 @@
 
 AezakmiTest/
 ├─ App/
-│  ├─ AezakmiTestApp.swift
-│  ├─ CompositionRoot.swift
-│  ├─ EnvironmentKey/
-│  │  ├─ DocumentRepositoryKey.swift
-│  │  ├─ PDFServiceKey.swift
-│  │  └─ SpeechServiceKey.swift
+│ ├─ AezakmiTestApp.swift
+│ ├─ CompositionRoot.swift
+│ └─ EnvironmentKey/
+│ ├─ DocumentRepositoryKey.swift
+│ ├─ PDFServiceKey.swift
+│ └─ SpeechServiceKey.swift
+│
 ├─ Core/
-│  └─ Persistence/
-│     ├─ CoreDataStack.swift
-│     ├─ DocumentEntity.swift
-│     └─ DocumentEntity+CoreDataProperties.swift
+│ └─ Persistence/
+│ ├─ CoreDataStack.swift
+│ ├─ DocumentEntity.swift
+│ └─ DocumentEntity+CoreDataProperties.swift
+│
 ├─ Domain/
-│  └─ Document/
-│     └─ Document.swift
+│ └─ Document/
+│ └─ Document.swift
+│
 ├─ Infrastructure/
-│  ├─ Protocols/
-│  │  ├─ DocumentRepositoryProtocol.swift
-│  │  ├─ PDFServiceProtocol.swift
-│  │  ├─ FileStoreProtocol.swift
-│  │  └─ SpeechServiceProtocol.swift
-│  ├─ Repositories/
-│  │  └─ DocumentRepositoryImpl.swift
-│  ├─ Utils/
-│  │  ├─ PDFService.swift
-│  │  ├─ FileStore.swift
-│  │  ├─ SpeechRecognizer.swift
-│  │  └─ FileImageLoader.swift
+│ ├─ Protocols/
+│ │ ├─ DocumentRepositoryProtocol.swift
+│ │ ├─ PDFServiceProtocol.swift
+│ │ ├─ FileStoreProtocol.swift
+│ │ └─ SpeechServiceProtocol.swift
+│ │
+│ ├─ Repositories/
+│ │ └─ DocumentRepositoryImpl.swift
+│ │
+│ └─ Utils/
+│ ├─ PDFService.swift
+│ ├─ FileStore.swift
+│ ├─ SpeechRecognizer.swift
+│ └─ FileImageLoader.swift
+│
 ├─ Presentation/
-│  └─ Scenes/
-│     ├─ Welcome/
-│     │  └─ WelcomeView.swift
-│     ├─ Editor/
-│     │  ├─ EditorView.swift
-│     │  ├─ EditorViewModel.swift
-│     │  ├─ PhotoPicker.swift
-│     │  └─ FilePicker.swift
-│     ├─ Library/
-│     │  ├─ LibraryView.swift
-│     │  └─ LibraryViewModel.swift
-│     └─ Reader/
-│        ├─ ReaderView.swift
-│        ├─ ReaderViewModel.swift
-│        ├─ ReaderContainer.swift
-│        ├─ PDFKitView.swift
-│        ├─ DictationView.swift
-│        └─ PageSelectionView.swift
-│  └─ Common/
-│     ├─ BusyOverlay.swift
-│     └─ ShareSheet.swift
-
+│ ├─ Scenes/
+│ │ ├─ Welcome/
+│ │ │ └─ WelcomeView.swift
+│ │ │
+│ │ ├─ Editor/
+│ │ │ ├─ EditorView.swift
+│ │ │ ├─ EditorViewModel.swift
+│ │ │ ├─ PhotoPicker.swift
+│ │ │ └─ FilePicker.swift
+│ │ │
+│ │ ├─ Library/
+│ │ │ ├─ LibraryView.swift
+│ │ │ └─ LibraryViewModel.swift
+│ │ │
+│ │ └─ Reader/
+│ │ ├─ ReaderView.swift
+│ │ ├─ ReaderViewModel.swift
+│ │ ├─ ReaderContainer.swift
+│ │ ├─ PDFKitView.swift
+│ │ ├─ DictationView.swift
+│ │ └─ PageSelectionView.swift
+│ │
+│ └─ Common/
+│ └─ BusyOverlay.swift
+│
+└─ ShareSheet.swift
 
 
 ## 🧾 Автор
