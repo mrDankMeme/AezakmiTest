@@ -10,21 +10,23 @@ import Combine
 import UIKit
 
 public protocol DocumentRepositoryProtocol {
-    //чтение
+    // чтение
     func list() -> AnyPublisher<[Document],Never>
-    
-    //создание/импорт
+
+    // создание/импорт
     func createFromImages(_ images: [UIImage], name: String?) throws -> Document
     func importFile(_ url: URL) throws -> Document
-    
-    //операции
+
+    // операции
     func delete(id: UUID) throws
     func shareURL(for id: UUID) throws -> URL
     func replaceStoredFile(for id: UUID, with newURL: URL) throws
-    
-    //пригодится позже
+
+    // объединение документов целиком
     func merge(_ a: UUID, _ b: UUID, name: String?) throws -> Document
+
+    func mergePages(_ pagesByDoc: [URL: [Int]], name: String?) throws -> Document
+
+    // прочее
     func updateThumbnailIfNeeded(for id: UUID) throws
-    
-    
 }

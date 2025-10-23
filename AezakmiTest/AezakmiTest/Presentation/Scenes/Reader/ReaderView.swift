@@ -20,6 +20,10 @@ struct ReaderView: View {
     
     @State private var showDeletePagePrompt: Bool = false
     @State private var pageToDeleteText: String = ""
+
+    // NEW: выбор страниц для нового PDF
+    @State private var showPagePicker: Bool = false
+    @State private var justCreatedDocName: String? = nil
     
     var body: some View {
         content
@@ -54,6 +58,25 @@ struct ReaderView: View {
                 Button("Отмена", role: .cancel) { pageToDeleteText = "" }
             } message: {
                 Text("Введите номер страницы для удаления (1–\(vm.document.pageCount))")
+            }
+            // NEW: итог успешного создания нового документа из страниц
+            .alert(justCreatedDocName.map { "Создан документ «\($0)»" } ?? "",
+                   isPresented: Binding(get: { justCreatedDocName != nil },
+                                        set: { if !$0 { justCreatedDocName = nil } })) {
+                Button("Ок", role: .cancel) { justCreatedDocName = nil }
+            }
+            .sheet(isPresented: $showPagePicker) {
+                PageSelectionView(
+                    sourceURL: vm.document.fileURL,
+                    initialSelection: IndexSet(integer: vm.currentPageIndex),
+                    onCancel: { showPagePicker = false },
+                    onCreate: { pages in
+                        showPagePicker = false
+                        vm.createDocumentFromPages(pages) { newName in
+                            justCreatedDocName = newName
+                        }
+                    }
+                )
             }
     }
     
@@ -97,6 +120,7 @@ struct ReaderView: View {
             Button("Добавить страницу") { showAddTextSheet = true }
             Button("Повернуть") { vm.rotateCurrentPage(clockwise: true) }
             Button("Удалить страницу") { showDeletePagePrompt = true }
+            Button("Собрать из страниц") { showPagePicker = true }   // NEW
             Button("Поделиться") { showShare = true }
         }
     }

@@ -15,7 +15,6 @@ final class ReaderViewModel : ObservableObject {
     @Published var isBusy = false
     @Published var errorMessage: String?
     
-    
     private let repo: DocumentRepositoryProtocol
     private let pdf: PDFServiceProtocol
     
@@ -28,7 +27,7 @@ final class ReaderViewModel : ObservableObject {
     }
     
     func canDeleteCurrentPage() -> Bool {
-        document.pageCount > 1 // не даю ему удалить последнюю старницу, потому что не хочу получить пустой документ
+        document.pageCount > 1
     }
     
     func deletePage(at index: Int) {
@@ -45,9 +44,9 @@ final class ReaderViewModel : ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             do {
-                let newURL = try pdf.removePage(at: index, in: document.fileURL)
-                try repo.replaceStoredFile(for: document.id, with: newURL)
-                let newCount = pdf.pageCount(of: newURL)
+                let newURL = try self.pdf.removePage(at: index, in: self.document.fileURL)
+                try self.repo.replaceStoredFile(for: self.document.id, with: newURL)
+                let newCount = self.pdf.pageCount(of: newURL)
                 
                 DispatchQueue.main.async {
                     self.document.fileURL = newURL
@@ -73,26 +72,26 @@ final class ReaderViewModel : ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             do {
-                let newURL = try pdf.rotatePage(at: currentPageIndex, in: document.fileURL, clockwise: true)
-                try repo.replaceStoredFile(for: document.id, with: newURL)
-                let newCount = pdf.pageCount(of: newURL)
+                let newURL = try self.pdf.rotatePage(at: self.currentPageIndex, in: self.document.fileURL, clockwise: true)
+                try self.repo.replaceStoredFile(for: self.document.id, with: newURL)
+                let newCount = self.pdf.pageCount(of: newURL)
                 
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return }
-                    document.fileURL = newURL
-                    document.pageCount = newCount
-                    isBusy = false
+                    self.document.fileURL = newURL
+                    self.document.pageCount = newCount
+                    self.isBusy = false
                 }
             } catch {
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return }
-                    errorMessage = nil
-                    isBusy = false
+                    self.errorMessage = nil
+                    self.isBusy = false
                 }
             }
         }
-        
     }
+    
     func addTextPage(_ text: String) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
@@ -102,31 +101,50 @@ final class ReaderViewModel : ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             do {
-                let newURL = try pdf.appendTextPage(text: text, in: document.fileURL)
+                let newURL = try self.pdf.appendTextPage(text: text, in: self.document.fileURL)
                 try self.repo.replaceStoredFile(for: self.document.id, with: newURL)
                 let newCount = self.pdf.pageCount(of: newURL)
                 
-                
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return }
-                    document.fileURL = newURL
-                    document.pageCount = newCount
-                    currentPageIndex = max (0, newCount - 1)
-                    isBusy = false
+                    self.document.fileURL = newURL
+                    self.document.pageCount = newCount
+                    self.currentPageIndex = max(0, newCount - 1)
+                    self.isBusy = false
                 }
             } catch {
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return }
-                    errorMessage = error.localizedDescription
-                    isBusy = false
+                    self.errorMessage = error.localizedDescription
+                    self.isBusy = false
                 }
             }
         }
-        
     }
     
     func shareURL() -> URL? {
         try? repo.shareURL(for: document.id)
     }
-}
 
+    func createDocumentFromPages(_ pages: [Int], completion: @escaping (String) -> Void) {
+        guard !pages.isEmpty else { return }
+        isBusy = true
+        let name = "\(document.name)_SelectedPages"
+        let map: [URL: [Int]] = [document.fileURL: pages.sorted()]
+        
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            defer { DispatchQueue.main.async { self.isBusy = false } }
+            do {
+                _ = try self.repo.mergePages(map, name: name)
+                DispatchQueue.main.async {
+                    completion(name)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+}

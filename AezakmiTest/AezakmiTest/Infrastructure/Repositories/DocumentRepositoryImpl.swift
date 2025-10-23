@@ -12,7 +12,6 @@ import UIKit
 import PDFKit
 
 final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
-
     private let context: NSManagedObjectContext
     private let fileStore: FileStoreProtocol
     private let pdf: PDFServiceProtocol
@@ -26,13 +25,7 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
         reload()
     }
 
-    // MARK: - Read
-
-    func list() -> AnyPublisher<[Document], Never> {
-        subject.eraseToAnyPublisher()
-    }
-
-    // MARK: - Create / Import
+    func list() -> AnyPublisher<[Document], Never> { subject.eraseToAnyPublisher() }
 
     func createFromImages(_ images: [UIImage], name: String?) throws -> Document {
         let url = try pdf.createPDF(from: images, suggestedName: name)
@@ -43,8 +36,6 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
         let dst = try pdf.importPDF(from: url)
         return try persist(url: dst, suggestedName: url.deletingPathExtension().lastPathComponent)
     }
-
-    // MARK: - Ops
 
     func delete(id: UUID) throws {
         let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
@@ -63,7 +54,6 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
     func shareURL(for id: UUID) throws -> URL {
         let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
         req.predicate = NSPredicate(format: "id = %@", id as CVarArg)
-
         guard let obj = try context.fetch(req).first else {
             throw NSError(domain: "Repo", code: 404, userInfo: [NSLocalizedDescriptionKey: "Not found"])
         }
@@ -76,13 +66,17 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
         return try persist(url: out, suggestedName: name ?? "Merged")
     }
 
+    // Новый метод: объединение выбранных страниц
+    func mergePages(_ pagesByDoc: [URL: [Int]], name: String?) throws -> Document {
+        let out = try pdf.mergePages(pagesByDoc, suggestedName: name)
+        return try persist(url: out, suggestedName: name ?? "MergedPages")
+    }
+
     func updateThumbnailIfNeeded(for id: UUID) throws {
         let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
         req.predicate = NSPredicate(format: "id = %@", id as CVarArg)
-
         guard let obj = try context.fetch(req).first else { return }
         let url = try resolveURL(obj.fileURL)
-
         if obj.thumbnail == nil {
             let img = try pdf.thumbNail(for: url, page: 0, size: CGSize(width: 160, height: 200))
             obj.thumbnail = img.pngData()
@@ -94,15 +88,11 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
     func replaceStoredFile(for id: UUID, with newURL: URL) throws {
         let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
         req.predicate = NSPredicate(format: "id = %@", id as CVarArg)
-
         guard let obj = try context.fetch(req).first else {
             throw NSError(domain: "Repo", code: 404, userInfo: [NSLocalizedDescriptionKey: "Not found"])
         }
 
-        
         let oldResolvedURL = try? resolveURL(obj.fileURL)
-
-        
         obj.fileURL = newURL.lastPathComponent
         obj.pageCount = Int16(pdf.pageCount(of: newURL))
         if let thumb = try? pdf.thumbNail(for: newURL, page: 0, size: CGSize(width: 160, height: 200)) {
@@ -112,7 +102,6 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
         try context.save()
         reload()
 
-        
         if let old = oldResolvedURL, old != newURL {
             try? fileStore.removeFile(at: old)
         }
@@ -124,22 +113,16 @@ private extension DocumentRepositoryImpl {
     func resolveURL(_ stored: String) throws -> URL {
         let decoded = stored.removingPercentEncoding ?? stored
         let fileName: String
-
         if decoded.contains("/Documents/") {
-            
             fileName = (decoded as NSString).lastPathComponent
         } else if decoded.hasPrefix("file://") {
-            
             fileName = (URL(string: decoded)?.lastPathComponent) ?? (decoded as NSString).lastPathComponent
         } else {
-            // уже имя файла
             fileName = decoded
         }
-
         let docs = try fileStore.documentsDir()
         return docs.appendingPathComponent(fileName)
     }
-
 
     @discardableResult
     func persist(url: URL, suggestedName: String) throws -> Document {
@@ -161,21 +144,6 @@ private extension DocumentRepositoryImpl {
         let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
         req.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         let objects = (try? context.fetch(req)) ?? []
-
-        var changed = false
-        for o in objects {
-            let s = o.fileURL
-            if s.contains("/Documents/") || s.hasPrefix("file://") {
-                let raw = s.removingPercentEncoding ?? s
-                let fileName = URL(string: raw)?.lastPathComponent ?? (raw as NSString).lastPathComponent
-                if o.fileURL != fileName {
-                    o.fileURL = fileName
-                    changed = true
-                }
-            }
-        }
-        if changed { try? context.save() }
-
         subject.send(objects.map(map))
     }
 
