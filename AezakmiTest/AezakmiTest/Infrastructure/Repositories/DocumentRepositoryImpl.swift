@@ -99,11 +99,11 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
             throw NSError(domain: "Repo", code: 404, userInfo: [NSLocalizedDescriptionKey: "Not found"])
         }
 
-        // старый файл (удалим после успешного сохранения)
+        
         let oldResolvedURL = try? resolveURL(obj.fileURL)
 
-        // новые метаданные
-        obj.fileURL = newURL.lastPathComponent                  // <- храним только имя файла
+        
+        obj.fileURL = newURL.lastPathComponent
         obj.pageCount = Int16(pdf.pageCount(of: newURL))
         if let thumb = try? pdf.thumbNail(for: newURL, page: 0, size: CGSize(width: 160, height: 200)) {
             obj.thumbnail = thumb.pngData()
@@ -112,7 +112,7 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
         try context.save()
         reload()
 
-        // подчищаем старый физический файл
+        
         if let old = oldResolvedURL, old != newURL {
             try? fileStore.removeFile(at: old)
         }
@@ -121,18 +121,15 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
 
 // MARK: - Helpers
 private extension DocumentRepositoryImpl {
-
-    /// Собираем актуальный URL в текущем контейнере Documents из того,
-    /// что лежит в БД (имя файла или наследованный полный путь/URL).
     func resolveURL(_ stored: String) throws -> URL {
         let decoded = stored.removingPercentEncoding ?? stored
         let fileName: String
 
         if decoded.contains("/Documents/") {
-            // старый абсолютный путь (с UUID контейнера) -> берём только имя файла
+            
             fileName = (decoded as NSString).lastPathComponent
         } else if decoded.hasPrefix("file://") {
-            // старый file:// URL -> вытащим имя
+            
             fileName = (URL(string: decoded)?.lastPathComponent) ?? (decoded as NSString).lastPathComponent
         } else {
             // уже имя файла
@@ -143,13 +140,13 @@ private extension DocumentRepositoryImpl {
         return docs.appendingPathComponent(fileName)
     }
 
-    /// Сохраняем метаданные документа в Core Data и отдаём модель
+
     @discardableResult
     func persist(url: URL, suggestedName: String) throws -> Document {
         let e = DocumentEntity(context: context)
         e.id = UUID()
         e.name = suggestedName
-        e.fileURL = url.lastPathComponent          // <- храним только имя файла
+        e.fileURL = url.lastPathComponent
         e.createdAt = Date()
         e.pageCount = Int16(pdf.pageCount(of: url))
         if let thumb = try? pdf.thumbNail(for: url, page: 0, size: CGSize(width: 160, height: 200)) {
@@ -160,13 +157,11 @@ private extension DocumentRepositoryImpl {
         return map(e)
     }
 
-    /// Перечитываем список + выполняем мягкую миграцию старых записей
     func reload() {
         let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
         req.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         let objects = (try? context.fetch(req)) ?? []
 
-        // Миграция: абсолютные пути/URL -> только имя файла
         var changed = false
         for o in objects {
             let s = o.fileURL
