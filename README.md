@@ -38,7 +38,7 @@
 - **Хранение:** Core Data (метаданные) + файлы в `Documents/`  
 - **PDF:** PDFKit  
 - **Реактивность:** Combine  
-- **Минимальная iOS:** 15.0 (зафиксировать в настройках проекта)
+- **Минимальная iOS:** 15.0
 
 **Слои:**
 - Views: `WelcomeView`, `EditorView`, `LibraryView`, `ReaderView`
