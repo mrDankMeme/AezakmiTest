@@ -33,6 +33,7 @@
 		A35FF2DB2EA9261A0000E890 /* PDFKitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2DA2EA926160000E890 /* PDFKitView.swift */; };
 		A35FF2DE2EA9290C0000E890 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2DD2EA929060000E890 /* ShareSheet.swift */; };
 		A35FF2E02EAA292F0000E890 /* BusyOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2DF2EAA29290000E890 /* BusyOverlay.swift */; };
+		A35FF2E32EAA756B0000E890 /* FileImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2E22EAA756B0000E890 /* FileImageLoader.swift */; };
 		A39406B02EA7894300ED4787 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A39406AB2EA7894300ED4787 /* Assets.xcassets */; };
 		A39406B22EA7894300ED4787 /* AezakmiTestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39406AA2EA7894300ED4787 /* AezakmiTestApp.swift */; };
 		A39406BB2EA789CD00ED4787 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39406B82EA789CD00ED4787 /* RootView.swift */; };
@@ -66,6 +67,7 @@
 		A35FF2DA2EA926160000E890 /* PDFKitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFKitView.swift; sourceTree = "<group>"; };
 		A35FF2DD2EA929060000E890 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
 		A35FF2DF2EAA29290000E890 /* BusyOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusyOverlay.swift; sourceTree = "<group>"; };
+		A35FF2E22EAA756B0000E890 /* FileImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileImageLoader.swift; sourceTree = "<group>"; };
 		A39406922EA788FD00ED4787 /* AezakmiTest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AezakmiTest.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A39406AA2EA7894300ED4787 /* AezakmiTestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AezakmiTestApp.swift; sourceTree = "<group>"; };
 		A39406AB2EA7894300ED4787 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -114,6 +116,7 @@
 		A35FF2AF2EA7E0DF0000E890 /* Infrastructure */ = {
 			isa = PBXGroup;
 			children = (
+				A35FF2E12EAA75620000E890 /* Utils */,
 				A35FF2BD2EA7F5590000E890 /* Repositories */,
 				A35FF2B82EA7E4FF0000E890 /* PDF */,
 				A35FF2B02EA7E0E80000E890 /* Storage */,
@@ -179,6 +182,14 @@
 				A35FF2DD2EA929060000E890 /* ShareSheet.swift */,
 			);
 			path = Components;
+			sourceTree = "<group>";
+		};
+		A35FF2E12EAA75620000E890 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				A35FF2E22EAA756B0000E890 /* FileImageLoader.swift */,
+			);
+			path = Utils;
 			sourceTree = "<group>";
 		};
 		A39406892EA788FD00ED4787 = {
@@ -383,6 +394,7 @@
 				A35FF2AB2EA7DCDD0000E890 /* DocumentEntity+CoreDataProperties.swift in Sources */,
 				A35FF2D92EA921AA0000E890 /* ReaderContainer.swift in Sources */,
 				A35FF2B22EA7E1050000E890 /* FileStoreProtocol.swift in Sources */,
+				A35FF2E32EAA756B0000E890 /* FileImageLoader.swift in Sources */,
 				A35FF2A32EA7D55F0000E890 /* DocumentsModel.xcdatamodeld in Sources */,
 				A35FF2C52EA8F3D90000E890 /* DocumentRepositoryKey.swift in Sources */,
 				A35FF2D52EA91C980000E890 /* PhotoPicker.swift in Sources */,

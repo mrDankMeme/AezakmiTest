@@ -7,39 +7,53 @@
 
 import UIKit
 import Combine
+import UniformTypeIdentifiers
 
 final class EditorViewModel: ObservableObject {
     @Published var pickedImages: [UIImage] = []
     @Published var importedFileURL: URL?
     @Published var createdDocument: Document?
-    
     @Published var isBusy: Bool = false
     @Published var errorMessage: String?
-    
+
     private let repo: DocumentRepositoryProtocol
- 
+
     init(repo: DocumentRepositoryProtocol) {
         self.repo = repo
     }
+
     func createPDF(name: String?) {
         guard !pickedImages.isEmpty || importedFileURL != nil else { return }
         isBusy = true
-        
         let title = (name?.isEmpty == false) ? name : nil
-        
+
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             do {
                 let doc: Document
-                
+
                 if !self.pickedImages.isEmpty {
-                    doc = try repo.createFromImages(pickedImages, name: name)
+                    doc = try self.repo.createFromImages(self.pickedImages, name: title)
                 } else if let url = self.importedFileURL {
-                    doc = try repo.importFile(url)
+                    let secured = url.startAccessingSecurityScopedResource()
+                    defer { if secured { url.stopAccessingSecurityScopedResource() } }
+
+                    let contentType = (try? url.resourceValues(forKeys: [.contentTypeKey]).contentType)
+
+                    if contentType == .pdf || url.pathExtension.lowercased() == "pdf" {
+                        doc = try self.repo.importFile(url)
+                    } else if contentType?.conforms(to: .image) == true {
+                        guard let img = FileImageLoader.loadFirstImage(from: url) else {
+                            throw NSError(domain: "EditorVM", code: -2, userInfo: [NSLocalizedDescriptionKey: "Не удалось прочитать изображение"])
+                        }
+                        doc = try self.repo.createFromImages([img], name: title)
+                    } else {
+                        throw NSError(domain: "EditorVM", code: -1, userInfo: [NSLocalizedDescriptionKey: "Неподдерживаемый тип файла"])
+                    }
                 } else {
-                    throw NSError(domain: "EditorVM", code: 0, userInfo: [NSLocalizedDescriptionKey:"No data"])
+                    throw NSError(domain: "EditorVM", code: 0, userInfo: [NSLocalizedDescriptionKey: "Нет данных для импорта"])
                 }
-                
+
                 DispatchQueue.main.async {
                     self.createdDocument = doc
                     self.isBusy = false
@@ -50,12 +64,6 @@ final class EditorViewModel: ObservableObject {
                     self.isBusy = false
                 }
             }
-        }
-        
-        func reset() {
-            pickedImages = []
-            importedFileURL = nil
-            createdDocument = nil
         }
     }
 }
