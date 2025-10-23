@@ -1,0 +1,2191 @@
+//
+//  DocumentEntity.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+
+import Foundation
+import CoreData
+
+@objc(DocumentEntity)
+public class DocumentEntity: NSManagedObject {}
+//
+//  CoreDataStack.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import CoreData
+
+final class CoreDataStack {
+    let container: NSPersistentContainer
+    init(modelName:String = "DocumentsModel") {
+        container = NSPersistentContainer(name: modelName)
+        container.loadPersistentStores { _, error in
+            if let err = error {
+                fatalError("❌ CoreData load error \(err)")
+            }
+        }
+        container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+    }
+    var viewContext: NSManagedObjectContext {
+        container.viewContext
+    }
+}
+//
+//  DocumentEntity+CoreDataProperties.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+
+import Foundation
+import CoreData
+
+extension DocumentEntity {
+
+    @nonobjc public class func fetchRequest() -> NSFetchRequest<DocumentEntity> {
+        return NSFetchRequest<DocumentEntity>(entityName: "DocumentEntity")
+    }
+
+    @NSManaged public var id: UUID
+    @NSManaged public var name: String
+    @NSManaged public var fileURL: String
+    @NSManaged public var createdAt: Date
+    @NSManaged public var pageCount: Int16
+    @NSManaged public var thumbnail: Data?
+}
+
+extension DocumentEntity : Identifiable {}
+//
+//  CompositionRoot.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import Foundation
+import CoreData
+
+@MainActor
+final class CompositionRoot {
+    static let shared = CompositionRoot()
+    
+    let coreData = CoreDataStack(modelName: "DocumentsModel")
+    let fileStore : FileStoreProtocol = FileStore()
+    let pdf : PDFServiceProtocol = PDFService()
+    
+    lazy var documentRepository: DocumentRepositoryProtocol = {
+        DocumentRepositoryImpl(
+            context: coreData.viewContext,
+            fileStore: fileStore,
+            pdf: pdf
+        )
+    }()
+    
+    private init() {}
+    
+}
+//
+//  AezakmiTestApp.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import SwiftUI
+
+
+@main
+struct AezakmiTestApp: App {
+    
+    @MainActor private let root = CompositionRoot.shared
+    
+    var body: some Scene {
+        WindowGroup {
+            RootView()
+                .environment(\.managedObjectContext, root.coreData.viewContext)
+                .environment(\.documentRepository, root.documentRepository)
+                .environment(\.pdfService, root.pdf)
+        }
+    }
+}
+//
+//  DocumentRepositoryKey.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+
+private struct DocumentRepositoryKey: SwiftUI.EnvironmentKey {
+    static let defaultValue: DocumentRepositoryProtocol = {
+        CompositionRoot.shared.documentRepository
+    }()
+    
+}
+
+extension EnvironmentValues {
+    var documentRepository: DocumentRepositoryProtocol {
+        get {
+            self[DocumentRepositoryKey.self]
+        } set {
+            self[DocumentRepositoryKey.self] = newValue
+        }
+    }
+}
+//
+//  PDFServiceKey.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+
+private struct PDFServiceKey: SwiftUI.EnvironmentKey {
+    static let defaultValue: PDFServiceProtocol = {
+        CompositionRoot.shared.pdf
+    }()
+}
+
+extension EnvironmentValues {
+    var pdfService: PDFServiceProtocol {
+        get {
+            self[PDFServiceKey.self]
+        } set {
+            self[PDFServiceKey.self] = newValue
+        }
+    }
+}
+//
+//  PDFService.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import Foundation
+import UIKit
+import PDFKit
+
+public struct PDFService: PDFServiceProtocol {
+    public init() {}
+
+    // Создание нового PDF из изображений
+    public func createPDF(from images: [UIImage], suggestedName: String?) throws -> URL {
+        guard !images.isEmpty else {
+            throw makeError("no images to render")
+        }
+
+        let fileStore = FileStore()
+        let dst = try fileStore.uniquePDFURL(suggestedName: suggestedName)
+
+        let pageRect: CGRect = CGRect(x: 0, y: 0, width: 595, height: 842) // A4 @72dpi
+        let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
+
+        let data = renderer.pdfData { ctx in
+            for img in images {
+                ctx.beginPage()
+                let rect = aspectFitRect(imageSize: img.size, in: pageRect)
+                img.draw(in: rect.integral)
+            }
+        }
+
+        try data.write(to: dst, options: .atomic)
+        return dst
+    }
+
+    // Импорт существующего PDF в песочницу
+    public func importPDF(from url: URL) throws -> URL {
+        let base = url.deletingPathExtension().lastPathComponent
+        return try FileStore().copyToSandbox(fileAt: url, suggestedName: base)
+    }
+
+    // Миниатюра страницы
+    public func thumbNail(for pdfUrl: URL, page: Int, size: CGSize) throws -> UIImage {
+        guard let doc = PDFDocument(url: pdfUrl) else {
+            throw makeError("Cannot open PDF")
+        }
+        guard let p = doc.page(at: page) else {
+            throw makeError("Page out of range")
+        }
+        return p.thumbnail(of: size, for: .cropBox)
+    }
+
+    // Удаление страницы и пересохранение
+    public func removePage(at index: Int, in PDFurl: URL) throws -> URL {
+        guard let doc = PDFDocument(url: PDFurl) else {
+            throw makeError("Cannot open PDF")
+        }
+        guard index >= 0, index < doc.pageCount else {
+            throw makeError("Page out of range")
+        }
+
+        doc.removePage(at: index)
+        let outURL = try FileStore().uniquePDFURL(
+            suggestedName: PDFurl.deletingPathExtension().lastPathComponent
+        )
+        try write(doc: doc, to: outURL)
+        return outURL
+    }
+
+    // Объединение целых документов
+    public func merge(docs urls: [URL], suggestedName: String?) throws -> URL {
+        let outDoc = PDFDocument()
+        var insertIndex = 0
+
+        for url in urls {
+            guard let src = PDFDocument(url: url) else { continue }
+            let count = src.pageCount
+            guard count > 0 else { continue }
+
+            for i in 0..<count {
+                if let page = src.page(at: i) {
+                    outDoc.insert(page, at: insertIndex)
+                    insertIndex += 1
+                }
+            }
+        }
+
+        guard insertIndex > 0 else {
+            throw makeError("No pages to merge")
+        }
+
+        let base = (suggestedName?.isEmpty == false)
+            ? suggestedName!
+            : "Merged-\(Int(Date().timeIntervalSince1970))"
+
+        let outURL = try FileStore().uniquePDFURL(suggestedName: base)
+        try write(doc: outDoc, to: outURL)
+        return outURL
+    }
+
+    // Подсчёт страниц
+    public func pageCount(of pdfURL: URL) -> Int {
+        PDFDocument(url: pdfURL)?.pageCount ?? 0
+    }
+
+    // Поворот страницы
+    public func rotatePage(at index: Int, in pdfURL: URL, clockwise: Bool) throws -> URL {
+        guard let doc = PDFDocument(url: pdfURL) else {
+            throw makeError("Не могу открыть PDF файл.")
+        }
+        guard let page = doc.page(at: index) else {
+            throw makeError("Индекс вне диапазона.")
+        }
+
+        let current = page.rotation
+        let delta = clockwise ? 90 : -90
+        var newRotation = (current + delta) % 360
+        if newRotation < 0 { newRotation += 360 }
+        page.rotation = newRotation
+
+        let outURL = try FileStore().uniquePDFURL(
+            suggestedName: pdfURL.deletingPathExtension().lastPathComponent
+        )
+        try write(doc: doc, to: outURL)
+        return outURL
+    }
+
+    // Добавление новой текстовой страницы
+    public func appendTextPage(text: String, in pdfURL: URL) throws -> URL {
+        guard let doc = PDFDocument(url: pdfURL) else {
+            throw makeError("Не могу открыть PDF файл.")
+        }
+
+        let pageRect = CGRect(x: 0, y: 0, width: 595, height: 842)
+        UIGraphicsBeginImageContextWithOptions(pageRect.size, true, 1)
+        defer { UIGraphicsEndImageContext() }
+
+        UIColor.white.setFill()
+        UIRectFill(pageRect)
+
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .left
+        paragraph.lineBreakMode = .byWordWrapping
+
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 16),
+            .foregroundColor: UIColor.black,
+            .paragraphStyle: paragraph
+        ]
+
+        let insetRect = pageRect.insetBy(dx: 32, dy: 32)
+        (text as NSString).draw(in: insetRect, withAttributes: attrs)
+
+        guard let img = UIGraphicsGetImageFromCurrentImageContext(),
+              let page = PDFPage(image: img)
+        else { throw makeError("Failed to render text page") }
+
+        doc.insert(page, at: doc.pageCount)
+
+        let base = pdfURL.deletingPathExtension().lastPathComponent
+        let outURL = try FileStore().uniquePDFURL(suggestedName: base)
+        try write(doc: doc, to: outURL)
+        return outURL
+    }
+
+    // MARK: - Объединение отдельных страниц из разных документов
+    public func mergePages(_ pagesByDoc: [URL: [Int]], suggestedName: String?) throws -> URL {
+        let outDoc = PDFDocument()
+        var insertIndex = 0
+
+        for (url, pageIndexes) in pagesByDoc {
+            guard let srcDoc = PDFDocument(url: url) else { continue }
+            for index in pageIndexes {
+                if let page = srcDoc.page(at: index) {
+                    outDoc.insert(page, at: insertIndex)
+                    insertIndex += 1
+                }
+            }
+        }
+
+        guard insertIndex > 0 else {
+            throw makeError("Нет выбранных страниц для объединения")
+        }
+
+        let base = (suggestedName?.isEmpty == false)
+            ? suggestedName!
+            : "MergedPages-\(Int(Date().timeIntervalSince1970))"
+
+        let outURL = try FileStore().uniquePDFURL(suggestedName: base)
+        try write(doc: outDoc, to: outURL)
+        return outURL
+    }
+}
+
+// MARK: - Helpers
+private extension PDFService {
+    func write(doc: PDFDocument, to url: URL) throws {
+        guard doc.write(to: url) else {
+            throw makeError("Failed to write PDF")
+        }
+    }
+
+    func aspectFitRect(imageSize: CGSize, in bounds: CGRect) -> CGRect {
+        guard imageSize.width > 0, imageSize.height > 0 else { return bounds }
+        let scale = min(bounds.width / imageSize.width, bounds.height / imageSize.height)
+        let w = imageSize.width * scale
+        let h = imageSize.height * scale
+        let x = bounds.minX + (bounds.width - w) / 2
+        let y = bounds.minY + (bounds.height - h) / 2
+        return CGRect(x: x, y: y, width: w, height: h)
+    }
+
+    func makeError(_ msg: String) -> NSError {
+        NSError(domain: "PDFService", code: 1, userInfo: [NSLocalizedDescriptionKey: msg])
+    }
+}
+//
+//  SpeechRecognizer.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/23/25.
+//
+
+
+import Foundation
+import AVFoundation
+import Speech
+
+final class SpeechRecognizer: NSObject {
+    private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "ru-RU"))
+    private let audioEngine = AVAudioEngine()
+    private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var task: SFSpeechRecognitionTask?
+
+    var onText: ((String) -> Void)?
+    var onError: ((String) -> Void)?
+    var onFinish: (() -> Void)?
+
+    func start() {
+        SFSpeechRecognizer.requestAuthorization { [weak self] status in
+            guard let self = self else { return }
+            if status == .authorized {
+                DispatchQueue.main.async { self.beginSession() }
+            } else {
+                DispatchQueue.main.async {
+                    self.onError?("Доступ к распознаванию речи не разрешён")
+                }
+            }
+        }
+    }
+
+    func stop() {
+        request?.endAudio()
+        if audioEngine.isRunning {
+            audioEngine.stop()
+        }
+        if audioEngine.inputNode.outputFormat(forBus: 0).channelCount > 0 {
+            audioEngine.inputNode.removeTap(onBus: 0)
+        }
+        // НЕ вызываем cancel — даём таске корректно завершиться.
+    }
+
+    func cancel() {
+        task?.cancel()
+        cleanup()
+    }
+
+    private func beginSession() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.record, mode: .measurement, options: [.duckOthers])
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+
+            let req = SFSpeechAudioBufferRecognitionRequest()
+            req.shouldReportPartialResults = true
+            request = req
+
+            let input = audioEngine.inputNode
+            let format = input.outputFormat(forBus: 0)
+            input.removeTap(onBus: 0)
+            input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+                self?.request?.append(buffer)
+            }
+
+            audioEngine.prepare()
+            try audioEngine.start()
+
+            task = recognizer?.recognitionTask(with: req) { [weak self] result, error in
+                guard let self = self else { return }
+
+                if let text = result?.bestTranscription.formattedString {
+                    self.onText?(text)
+                }
+
+                if let err = error as NSError? {
+                    // Игнорируем «отменено» при штатной остановке
+                    let msg = err.localizedDescription.lowercased()
+                    if err.domain == "kSFSpeechRecognitionErrorDomain" && err.code == 203 { return }
+                    if msg.contains("canceled") { return }
+                    self.onError?(err.localizedDescription)
+                    self.cleanup()
+                    return
+                }
+
+                if result?.isFinal == true {
+                    self.onFinish?()
+                    self.cleanup()
+                }
+            }
+        } catch {
+            onError?("Не удалось запустить аудиосессию: \(error.localizedDescription)")
+            cleanup()
+        }
+    }
+
+    private func cleanup() {
+        if audioEngine.isRunning {
+            audioEngine.stop()
+        }
+        if audioEngine.inputNode.outputFormat(forBus: 0).channelCount > 0 {
+            audioEngine.inputNode.removeTap(onBus: 0)
+        }
+        request?.endAudio()
+        task = nil
+        request = nil
+    }
+}
+//
+//  FileImageLoader.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/23/25.
+//
+
+
+import UIKit
+import ImageIO
+import MobileCoreServices
+
+enum FileImageLoader {
+    static func loadFirstImage(from url: URL) -> UIImage? {
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        guard let cg = CGImageSourceCreateImageAtIndex(src, 0, [kCGImageSourceShouldCache: true as CFBoolean] as CFDictionary) else { return nil }
+        return UIImage(cgImage: cg, scale: UIScreen.main.scale, orientation: .up)
+    }
+}
+//
+//  DocumentRepositoryImpl.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import Foundation
+import CoreData
+import Combine
+import UIKit
+import PDFKit
+
+final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
+    private let context: NSManagedObjectContext
+    private let fileStore: FileStoreProtocol
+    private let pdf: PDFServiceProtocol
+
+    private let subject = CurrentValueSubject<[Document], Never>([])
+
+    init(context: NSManagedObjectContext, fileStore: FileStoreProtocol, pdf: PDFServiceProtocol) {
+        self.context = context
+        self.fileStore = fileStore
+        self.pdf = pdf
+        reload()
+    }
+
+    func list() -> AnyPublisher<[Document], Never> { subject.eraseToAnyPublisher() }
+
+    func createFromImages(_ images: [UIImage], name: String?) throws -> Document {
+        let url = try pdf.createPDF(from: images, suggestedName: name)
+        return try persist(url: url, suggestedName: name ?? "Document")
+    }
+
+    func importFile(_ url: URL) throws -> Document {
+        let dst = try pdf.importPDF(from: url)
+        return try persist(url: dst, suggestedName: url.deletingPathExtension().lastPathComponent)
+    }
+
+    func delete(id: UUID) throws {
+        let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "id = %@", id as CVarArg)
+
+        if let obj = try context.fetch(req).first {
+            if let url = try? resolveURL(obj.fileURL) {
+                try? fileStore.removeFile(at: url)
+            }
+            context.delete(obj)
+            try context.save()
+            reload()
+        }
+    }
+
+    func shareURL(for id: UUID) throws -> URL {
+        let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "id = %@", id as CVarArg)
+        guard let obj = try context.fetch(req).first else {
+            throw NSError(domain: "Repo", code: 404, userInfo: [NSLocalizedDescriptionKey: "Not found"])
+        }
+        return try resolveURL(obj.fileURL)
+    }
+
+    func merge(_ a: UUID, _ b: UUID, name: String?) throws -> Document {
+        let urls = try [a, b].map { try shareURL(for: $0) }
+        let out = try pdf.merge(docs: urls, suggestedName: name)
+        return try persist(url: out, suggestedName: name ?? "Merged")
+    }
+
+    func mergePages(_ pagesByDoc: [URL: [Int]], name: String?) throws -> Document {
+        let out = try pdf.mergePages(pagesByDoc, suggestedName: name)
+        return try persist(url: out, suggestedName: name ?? "MergedPages")
+    }
+
+    func updateThumbnailIfNeeded(for id: UUID) throws {
+        let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "id = %@", id as CVarArg)
+        guard let obj = try context.fetch(req).first else { return }
+        let url = try resolveURL(obj.fileURL)
+        if obj.thumbnail == nil {
+            let img = try pdf.thumbNail(for: url, page: 0, size: CGSize(width: 160, height: 200))
+            obj.thumbnail = img.pngData()
+            try context.save()
+            reload()
+        }
+    }
+
+    func replaceStoredFile(for id: UUID, with newURL: URL) throws {
+        let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "id = %@", id as CVarArg)
+        guard let obj = try context.fetch(req).first else {
+            throw NSError(domain: "Repo", code: 404, userInfo: [NSLocalizedDescriptionKey: "Not found"])
+        }
+
+        let oldResolvedURL = try? resolveURL(obj.fileURL)
+        obj.fileURL = newURL.lastPathComponent
+        obj.pageCount = Int16(pdf.pageCount(of: newURL))
+        if let thumb = try? pdf.thumbNail(for: newURL, page: 0, size: CGSize(width: 160, height: 200)) {
+            obj.thumbnail = thumb.pngData()
+        }
+
+        try context.save()
+        reload()
+
+        if let old = oldResolvedURL, old != newURL {
+            try? fileStore.removeFile(at: old)
+        }
+    }
+}
+
+// MARK: - Helpers
+private extension DocumentRepositoryImpl {
+    func resolveURL(_ stored: String) throws -> URL {
+        let decoded = stored.removingPercentEncoding ?? stored
+        let fileName: String
+        if decoded.contains("/Documents/") {
+            fileName = (decoded as NSString).lastPathComponent
+        } else if decoded.hasPrefix("file://") {
+            fileName = (URL(string: decoded)?.lastPathComponent) ?? (decoded as NSString).lastPathComponent
+        } else {
+            fileName = decoded
+        }
+        let docs = try fileStore.documentsDir()
+        return docs.appendingPathComponent(fileName)
+    }
+
+    @discardableResult
+    func persist(url: URL, suggestedName: String) throws -> Document {
+        let e = DocumentEntity(context: context)
+        e.id = UUID()
+        e.name = suggestedName
+        e.fileURL = url.lastPathComponent
+        e.createdAt = Date()
+        e.pageCount = Int16(pdf.pageCount(of: url))
+        if let thumb = try? pdf.thumbNail(for: url, page: 0, size: CGSize(width: 160, height: 200)) {
+            e.thumbnail = thumb.pngData()
+        }
+        try context.save()
+        reload()
+        return map(e)
+    }
+
+    func reload() {
+        let req: NSFetchRequest<DocumentEntity> = DocumentEntity.fetchRequest()
+        req.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        let objects = (try? context.fetch(req)) ?? []
+        subject.send(objects.map(map))
+    }
+
+    func map(_ e: DocumentEntity) -> Document {
+        let url = (try? resolveURL(e.fileURL)) ?? URL(fileURLWithPath: "/dev/null")
+        let img = e.thumbnail.flatMap(UIImage.init(data:))
+        return Document(
+            id: e.id,
+            name: e.name,
+            fileURL: url,
+            createdAt: e.createdAt,
+            pageCount: Int(e.pageCount),
+            thumbNail: img
+        )
+    }
+}
+//
+//  FileStore.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import Foundation
+
+public class FileStore: FileStoreProtocol {
+
+    public init() {}
+
+    public func documentsDir() throws -> URL {
+        try FileManager.default.url(for: .documentDirectory,
+                                    in: .userDomainMask,
+                                    appropriateFor: nil,
+                                    create: true)
+    }
+
+    // MARK: - Public
+
+    public func uniquePDFURL(suggestedName: String?) throws -> URL {
+        let baseRaw = (suggestedName?.isEmpty == false ? suggestedName! : "Document")
+        
+        let baseNoDates = stripTrailingTimestamps(from: baseRaw)
+        
+        let cleanBase  = sanitize(baseNoDates.replacingOccurrences(of: " ", with: "_"))
+        
+        let stamp = safeTimestamp()
+
+        
+        var fileName = "\(cleanBase)_\(stamp).pdf"
+        
+        if fileName.utf8.count > maxFileNameBytes {
+            
+            let reserved = ("_\(stamp).pdf").utf8.count
+            let allowedForBase = max(1, maxFileNameBytes - reserved)
+            let trimmedBase = trimToUTF8Limit(cleanBase, limit: allowedForBase)
+            fileName = "\(trimmedBase)_\(stamp).pdf"
+        }
+
+        return try documentsDir().appendingPathComponent(fileName, isDirectory: false)
+    }
+
+    public func copyToSandbox(fileAt url: URL, suggestedName: String?) throws -> URL {
+        let suggested = suggestedName ?? url.deletingPathExtension().lastPathComponent
+        let dst = try uniquePDFURL(suggestedName: suggested)
+        try FileManager.default.copyItem(at: url, to: dst)
+        return dst
+    }
+
+    public func removeFile(at url: URL) throws {
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
+    }
+
+    // MARK: - Internals
+
+    /// Безопасный timestamp без двоеточий/слэшей.
+    private func safeTimestamp() -> String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = TimeZone(secondsFromGMT: 0)
+        df.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        return df.string(from: Date())
+    }
+
+    
+    private func sanitize(_ s: String) -> String {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
+        var out = ""
+        out.reserveCapacity(s.count)
+        for u in s.unicodeScalars {
+            out.append(allowed.contains(u) ? Character(u) : "_")
+        }
+        // не допускаем пустого имени
+        return out.isEmpty ? "Document" : out
+    }
+
+    
+    private func stripTrailingTimestamps(from name: String) -> String {
+        
+        let patterns = [
+            #"(_\d{4}-\d{2}-\d{2}T\d{2}/\d{2}/\d{2}Z)+"#,
+            #"(_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})+"#
+        ]
+
+        var result = name
+        for p in patterns {
+            if let re = try? NSRegularExpression(pattern: p + "$", options: []) {
+                result = re.stringByReplacingMatches(in: result,
+                                                     options: [],
+                                                     range: NSRange(location: 0, length: (result as NSString).length),
+                                                     withTemplate: "")
+            }
+        }
+        return result
+    }
+
+    
+    private func trimToUTF8Limit(_ s: String, limit: Int) -> String {
+        guard s.utf8.count > limit else { return s }
+        var bytes = 0
+        var out = ""
+        out.reserveCapacity(min(s.count, limit))
+        for ch in s {
+            let len = String(ch).utf8.count
+            if bytes + len > limit { break }
+            out.append(ch)
+            bytes += len
+        }
+        return out.isEmpty ? "D" : out
+    }
+
+     
+    private var maxFileNameBytes: Int { 240 }
+}
+//
+//  DocumentRepositoryProtocol.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import Foundation
+import Combine
+import UIKit
+
+public protocol DocumentRepositoryProtocol {
+    // чтение
+    func list() -> AnyPublisher<[Document],Never>
+
+    // создание/импорт
+    func createFromImages(_ images: [UIImage], name: String?) throws -> Document
+    func importFile(_ url: URL) throws -> Document
+
+    // операции
+    func delete(id: UUID) throws
+    func shareURL(for id: UUID) throws -> URL
+    func replaceStoredFile(for id: UUID, with newURL: URL) throws
+
+    // объединение документов целиком
+    func merge(_ a: UUID, _ b: UUID, name: String?) throws -> Document
+
+    func mergePages(_ pagesByDoc: [URL: [Int]], name: String?) throws -> Document
+
+    // прочее
+    func updateThumbnailIfNeeded(for id: UUID) throws
+}
+//
+//  FileStoreProtocol.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import Foundation
+
+public protocol FileStoreProtocol {
+    func documentsDir() throws -> URL
+    func uniquePDFURL(suggestedName: String?) throws -> URL
+    func copyToSandbox(fileAt: URL, suggestedName: String?) throws -> URL
+    func removeFile(at url: URL) throws
+}
+
+//
+//  PDFStoreProtocol.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import Foundation
+import UIKit
+
+public protocol PDFServiceProtocol {
+    func createPDF(from images: [UIImage], suggestedName: String?) throws -> URL
+    func importPDF(from url: URL) throws -> URL
+    func thumbNail(for pdfUrl: URL, page: Int, size: CGSize) throws -> UIImage
+    func removePage(at: Int, in PDFurl: URL) throws -> URL
+    func merge(docs urls: [URL], suggestedName: String?) throws -> URL
+    func pageCount(of pdfURL: URL) -> Int
+    func rotatePage(at index: Int, in pdfURL: URL, clockwise: Bool) throws -> URL
+    func appendTextPage(text: String, in pdfURL: URL) throws -> URL
+    func mergePages(_ pagesByDoc: [URL: [Int]], suggestedName: String?) throws -> URL
+}
+
+//
+//  Document.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import Foundation
+import UIKit
+
+public struct Document: Identifiable, Hashable {
+    public let id: UUID
+    public var name: String
+    public var fileURL: URL
+    public var createdAt: Date
+    public var pageCount: Int
+    public var thumbNail: UIImage?
+    
+    public init(id: UUID, name: String, fileURL: URL, createdAt: Date, pageCount: Int, thumbNail: UIImage? = nil) {
+        self.id = id
+        self.name = name
+        self.fileURL = fileURL
+        self.createdAt = createdAt
+        self.pageCount = pageCount
+        self.thumbNail = thumbNail
+    }
+    
+}
+//
+//  PDFKitView.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+import PDFKit
+
+struct PDFKitView: UIViewRepresentable {
+    let url: URL
+    @Binding var currentPageIndex: Int
+
+    func makeUIView(context: Context) -> PDFView {
+        let v = PDFView()
+        v.autoScales = true
+        v.displayMode = .singlePageContinuous
+        v.delegate = context.coordinator
+        v.document = PDFDocument(url: url)
+        return v
+    }
+
+    func updateUIView(_ uiView: PDFView, context: Context) {
+        if uiView.document?.documentURL != url {
+            uiView.document = PDFDocument(url: url)
+        }
+        if let doc = uiView.document,
+           currentPageIndex >= 0,
+           currentPageIndex < doc.pageCount,
+           let page = doc.page(at: currentPageIndex),
+           uiView.currentPage != page {
+            uiView.go(to: page)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    final class Coordinator: NSObject, PDFViewDelegate {
+        let parent: PDFKitView
+        init(_ parent: PDFKitView) { self.parent = parent }
+
+        func pdfViewPageChanged(_ sender: PDFView) {
+            guard let page = sender.currentPage,
+                  let doc = sender.document else { return }
+            parent.currentPageIndex = doc.index(for: page)
+        }
+    }
+}
+\//
+//  PageSelectionView 2.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/23/25.
+//
+
+
+import SwiftUI
+import PDFKit
+
+struct PageSelectionView: View {
+    let sourceURL: URL
+    let initialSelection: IndexSet
+    let onCancel: () -> Void
+    let onCreate: (_ pages: [Int]) -> Void
+
+    @State private var thumbnails: [UIImage] = []
+    @State private var pageCount: Int = 0
+    @State private var selection = Set<Int>()
+    @State private var isLoading = true
+
+    var body: some View {
+        NavigationView {
+            Group {
+                if isLoading {
+                    ProgressView("Загрузка страниц…")
+                        .progressViewStyle(.circular)
+                } else {
+                    GeometryReader { proxy in
+                        let minWidth: CGFloat = 92
+                        let columns = [GridItem(.adaptive(minimum: minWidth), spacing: 12)]
+                        let thumbW = max(minWidth, (proxy.size.width - 12*4)/3)
+                        let thumbH = thumbW * 1.3
+
+                        ScrollView {
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                ForEach(0..<pageCount, id: \.self) { i in
+                                    pageThumb(index: i, size: CGSize(width: thumbW, height: thumbH))
+                                }
+                            }
+                            .padding(12)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Выбор страниц")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена") { onCancel() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Создать PDF") {
+                        onCreate(selection.sorted())
+                    }
+                    .disabled(selection.isEmpty)
+                }
+            }
+            .onAppear(perform: load)
+        }
+    }
+
+    @ViewBuilder
+    private func pageThumb(index: Int, size: CGSize) -> some View {
+        let selected = selection.contains(index)
+        ZStack(alignment: .topTrailing) {
+            if index < thumbnails.count {
+                Image(uiImage: thumbnails[index])
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                    .cornerRadius(8)
+            } else {
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.15))
+                    .frame(width: size.width, height: size.height)
+                    .cornerRadius(8)
+            }
+
+            Text("\(index + 1)")
+                .font(.caption2).padding(4)
+                .background(.ultraThinMaterial)
+                .cornerRadius(6)
+                .padding(4)
+
+            if selected {
+                Image(systemName: "checkmark.circle.fill")
+                    .imageScale(.large)
+                    .padding(6)
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(selected ? Color.accentColor : Color.clear, lineWidth: 2)
+        )
+        .onTapGesture {
+            if selection.contains(index) {
+                selection.remove(index)
+            } else {
+                selection.insert(index)
+            }
+        }
+    }
+
+    private func load() {
+        isLoading = true
+        selection = Set(initialSelection)
+        DispatchQueue.global(qos: .userInitiated).async {
+            var localThumbs: [UIImage] = []
+            var count = 0
+            if let doc = PDFDocument(url: sourceURL) {
+                count = doc.pageCount
+                for i in 0..<count {
+                    if let p = doc.page(at: i) {
+                        let img = p.thumbnail(of: CGSize(width: 160, height: 208), for: .cropBox)
+                        localThumbs.append(img)
+                    }
+                }
+            }
+            DispatchQueue.main.async {
+                self.pageCount = count
+                self.thumbnails = localThumbs
+                self.isLoading = false
+            }
+        }
+    }
+}
+//
+//  DictationView.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/23/25.
+//
+
+
+import SwiftUI
+
+struct DictationView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var text: String = ""
+    @State private var isRunning = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+
+    let onCommit: (String) -> Void
+    private let speech = SpeechRecognizer()
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 16) {
+                TextEditor(text: $text)
+                    .frame(minHeight: 160)
+                    .padding()
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .cornerRadius(16)
+                    .disabled(isRunning == false)
+
+                Spacer()
+
+                HStack(spacing: 20) {
+                    Button(isRunning ? "Стоп" : "Старт") {
+                        if isRunning { stop() } else { start() }
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Button("Очистить") {
+                        text = ""
+                    }
+                    .disabled(text.isEmpty || isRunning)
+                }
+            }
+            .padding()
+            .navigationTitle("Диктовка")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена") {
+                        cancel()
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Добавить") {
+                        stop()
+                        onCommit(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                        dismiss()
+                    }
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .alert("Ошибка", isPresented: $showError) {
+                Button("Ок", role: .cancel) { showError = false }
+            } message: {
+                Text(errorMessage)
+            }
+        }
+        .onDisappear { cancel() }
+    }
+
+    private func start() {
+        speech.onText = { new in
+            text = new
+        }
+        speech.onError = { msg in
+            errorMessage = msg
+            showError = true
+            isRunning = false
+        }
+        speech.onFinish = {
+            isRunning = false
+        }
+        speech.start()
+        isRunning = true
+    }
+
+    private func stop() {
+        speech.stop()
+        isRunning = false
+    }
+
+    private func cancel() {
+        speech.cancel()      
+        isRunning = false
+    }
+}
+//
+//  ReaderView.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+
+struct ReaderView: View {
+    @Environment(\.documentRepository) private var repo
+    @Environment(\.pdfService) private var pdf
+
+    @StateObject var vm: ReaderViewModel
+
+    @State private var showShare = false
+    @State private var showCantDeleteAlert = false
+    @State private var showError = false
+    @State private var showAddTextSheet = false
+    @State private var newPageText = ""
+
+    @State private var showDeletePagePrompt = false
+    @State private var pageToDeleteText = ""
+
+    @State private var showPagePicker = false
+
+    // Взамен сложной inline-алерты
+    @State private var showCreatedAlert = false
+    @State private var createdDocName = ""
+
+    // Диктовка
+    @State private var showDictation = false
+
+    var body: some View {
+        content
+            .navigationTitle(vm.document.name)
+            .toolbar { readerToolbar }
+            .alert("Нельзя удалить страницу", isPresented: $showCantDeleteAlert) {
+                Button("Ok", role: .cancel) {}
+            }
+            .onChange(of: vm.errorMessage) { msg in
+                showError = (msg != nil)
+            }
+            .alert("Ошибка", isPresented: $showError) {
+                Button("Ok") { vm.errorMessage = nil }
+            } message: {
+                Text(vm.errorMessage ?? "Неизвестная ошибка")
+            }
+            .sheet(isPresented: $showShare) {
+                if let url = vm.shareURL() { ShareSheet(activityItems: [url]) }
+            }
+            .sheet(isPresented: $showAddTextSheet) { addTextSheet }
+            .overlay {
+                if vm.isBusy { BusyOverlay(title: "Обновление...") }
+            }
+            .alert("Введите номер страницы", isPresented: $showDeletePagePrompt) {
+                TextField("Номер страницы", text: $pageToDeleteText)
+                    .keyboardType(.numberPad)
+                Button("Удалить") {
+                    if let index = Int(pageToDeleteText), index > 0 {
+                        vm.deletePage(at: index - 1)
+                    } else {
+                        vm.errorMessage = "Введите корректный номер страницы"
+                        showError = true
+                    }
+                    pageToDeleteText = ""
+                }
+                Button("Отмена", role: .cancel) { pageToDeleteText = "" }
+            } message: {
+                Text("Введите номер страницы для удаления (1–\(vm.document.pageCount))")
+            }
+            // Простой алерт без вычисляемых биндингов
+            .alert("Создан документ «\(createdDocName)»", isPresented: $showCreatedAlert) {
+                Button("Ок", role: .cancel) { showCreatedAlert = false }
+            }
+            .sheet(isPresented: $showPagePicker) {
+                PageSelectionView(
+                    sourceURL: vm.document.fileURL,
+                    initialSelection: IndexSet(integer: vm.currentPageIndex),
+                    onCancel: { showPagePicker = false },
+                    onCreate: { pages in
+                        showPagePicker = false
+                        vm.createDocumentFromPages(pages) { newName in
+                            createdDocName = newName
+                            showCreatedAlert = true
+                        }
+                    }
+                )
+            }
+            // Используем версию DictationView с одним колбэком onCommit
+            .sheet(isPresented: $showDictation) {
+                DictationView { text in
+                    vm.addTextPage(text)
+                }
+            }
+    }
+
+    private var content: some View {
+        VStack(spacing: 0) {
+            PDFKitView(url: vm.document.fileURL, currentPageIndex: $vm.currentPageIndex)
+            pageControl
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color(UIColor.secondarySystemBackground))
+        }
+    }
+
+    private var pageControl: some View {
+        HStack(spacing: 12) {
+            Button {
+                vm.currentPageIndex = max(0, vm.currentPageIndex - 1)
+            } label: {
+                Image(systemName: "chevron.left")
+            }
+            .disabled(vm.currentPageIndex <= 0)
+
+            Text("Стр. \(vm.currentPageIndex + 1) / \(max(1, vm.document.pageCount))")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+
+            Button {
+                vm.currentPageIndex = min(max(0, vm.document.pageCount - 1), vm.currentPageIndex + 1)
+            } label: {
+                Image(systemName: "chevron.right")
+            }
+            .disabled(vm.currentPageIndex >= vm.document.pageCount - 1)
+
+            Spacer()
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var readerToolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .navigationBarTrailing) {
+            Button("Добавить страницу") { showAddTextSheet = true }
+            Button("Надиктовать") { showDictation = true }
+            Button("Повернуть") { vm.rotateCurrentPage(clockwise: true) }
+            Button("Удалить страницу") { showDeletePagePrompt = true }
+            Button("Собрать из страниц") { showPagePicker = true }
+            Button("Поделиться") { showShare = true }
+        }
+    }
+
+    private var addTextSheet: some View {
+        NavigationView {
+            VStack {
+                TextEditor(text: $newPageText)
+                    .font(.body)
+                    .padding()
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .cornerRadius(18)
+                    .padding()
+                Spacer()
+            }
+            .navigationTitle("Новая страница")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена") { showAddTextSheet = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Добавить") {
+                        let text = newPageText
+                        newPageText = ""
+                        showAddTextSheet = false
+                        vm.addTextPage(text)
+                    }
+                    .disabled(newPageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+    }
+}
+//
+//  ReaderViewModel.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import Foundation
+import Combine
+
+final class ReaderViewModel : ObservableObject {
+    @Published private(set) var document: Document
+    @Published var currentPageIndex: Int = 0
+    
+    @Published var isBusy = false
+    @Published var errorMessage: String?
+    
+    private let repo: DocumentRepositoryProtocol
+    private let pdf: PDFServiceProtocol
+    
+    init(document: Document,
+         repo: DocumentRepositoryProtocol,
+         pdf: PDFServiceProtocol) {
+        self.document = document
+        self.repo = repo
+        self.pdf = pdf
+    }
+    
+    func canDeleteCurrentPage() -> Bool {
+        document.pageCount > 1
+    }
+    
+    func deletePage(at index: Int) {
+        guard index >= 0, index < document.pageCount else {
+            errorMessage = "Страница \(index + 1) вне диапазона (1–\(document.pageCount))"
+            return
+        }
+        if document.pageCount <= 1 {
+            errorMessage = "Нельзя удалить последнюю страницу"
+            return
+        }
+        
+        isBusy = true
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            do {
+                let newURL = try self.pdf.removePage(at: index, in: self.document.fileURL)
+                try self.repo.replaceStoredFile(for: self.document.id, with: newURL)
+                let newCount = self.pdf.pageCount(of: newURL)
+                
+                DispatchQueue.main.async {
+                    self.document.fileURL = newURL
+                    self.document.pageCount = newCount
+                    self.currentPageIndex = min(self.currentPageIndex, max(0, newCount - 1))
+                    self.isBusy = false
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.errorMessage = error.localizedDescription
+                    self.isBusy = false
+                }
+            }
+        }
+    }
+    
+    func deleteCurrentPage() {
+        deletePage(at: currentPageIndex)
+    }
+    
+    func rotateCurrentPage(clockwise: Bool = true) {
+        isBusy = true
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            do {
+                let newURL = try self.pdf.rotatePage(at: self.currentPageIndex, in: self.document.fileURL, clockwise: true)
+                try self.repo.replaceStoredFile(for: self.document.id, with: newURL)
+                let newCount = self.pdf.pageCount(of: newURL)
+                
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    self.document.fileURL = newURL
+                    self.document.pageCount = newCount
+                    self.isBusy = false
+                }
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    self.errorMessage = nil
+                    self.isBusy = false
+                }
+            }
+        }
+    }
+    
+    func addTextPage(_ text: String) {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        
+        isBusy = true
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            do {
+                let newURL = try self.pdf.appendTextPage(text: text, in: self.document.fileURL)
+                try self.repo.replaceStoredFile(for: self.document.id, with: newURL)
+                let newCount = self.pdf.pageCount(of: newURL)
+                
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    self.document.fileURL = newURL
+                    self.document.pageCount = newCount
+                    self.currentPageIndex = max(0, newCount - 1)
+                    self.isBusy = false
+                }
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    self.errorMessage = error.localizedDescription
+                    self.isBusy = false
+                }
+            }
+        }
+    }
+    
+    func shareURL() -> URL? {
+        try? repo.shareURL(for: document.id)
+    }
+
+    func createDocumentFromPages(_ pages: [Int], completion: @escaping (String) -> Void) {
+        guard !pages.isEmpty else { return }
+        isBusy = true
+        let name = "\(document.name)_SelectedPages"
+        let map: [URL: [Int]] = [document.fileURL: pages.sorted()]
+        
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            defer { DispatchQueue.main.async { self.isBusy = false } }
+            do {
+                _ = try self.repo.mergePages(map, name: name)
+                DispatchQueue.main.async {
+                    completion(name)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+}
+//
+//  ReaderContainer.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+
+struct ReaderContainer: View {
+    @Environment(\.documentRepository) private var repo
+    @Environment(\.pdfService) private var pdf
+    
+    let document: Document
+    
+    var body: some View {
+        ReaderView(vm: ReaderViewModel(document: document, repo: repo, pdf: pdf))
+    }
+}
+import SwiftUI
+import PDFKit
+
+struct PageSelectionView: View {
+    let sourceURL: URL
+    let initialSelection: IndexSet
+    let onCancel: () -> Void
+    let onCreate: (_ pages: [Int]) -> Void
+
+    @State private var thumbnails: [UIImage] = []
+    @State private var pageCount: Int = 0
+    @State private var selection = Set<Int>()
+    @State private var isLoading = true
+
+    var body: some View {
+        NavigationView {
+            Group {
+                if isLoading {
+                    ProgressView("Загрузка страниц…")
+                        .progressViewStyle(.circular)
+                } else {
+                    GeometryReader { proxy in
+                        let minWidth: CGFloat = 92
+                        let columns = [GridItem(.adaptive(minimum: minWidth), spacing: 12)]
+                        let thumbW = max(minWidth, (proxy.size.width - 12*4)/3)
+                        let thumbH = thumbW * 1.3
+
+                        ScrollView {
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                ForEach(0..<pageCount, id: \.self) { i in
+                                    pageThumb(index: i, size: CGSize(width: thumbW, height: thumbH))
+                                }
+                            }
+                            .padding(12)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Выбор страниц")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена") { onCancel() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Создать PDF") {
+                        onCreate(selection.sorted())
+                    }
+                    .disabled(selection.isEmpty)
+                }
+            }
+            .onAppear(perform: load)
+        }
+    }
+
+    @ViewBuilder
+    private func pageThumb(index: Int, size: CGSize) -> some View {
+        let selected = selection.contains(index)
+        ZStack(alignment: .topTrailing) {
+            if index < thumbnails.count {
+                Image(uiImage: thumbnails[index])
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                    .cornerRadius(8)
+            } else {
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.15))
+                    .frame(width: size.width, height: size.height)
+                    .cornerRadius(8)
+            }
+
+            Text("\(index + 1)")
+                .font(.caption2).padding(4)
+                .background(.ultraThinMaterial)
+                .cornerRadius(6)
+                .padding(4)
+
+            if selected {
+                Image(systemName: "checkmark.circle.fill")
+                    .imageScale(.large)
+                    .padding(6)
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(selected ? Color.accentColor : Color.clear, lineWidth: 2)
+        )
+        .onTapGesture {
+            if selection.contains(index) {
+                selection.remove(index)
+            } else {
+                selection.insert(index)
+            }
+        }
+    }
+
+    private func load() {
+        isLoading = true
+        selection = Set(initialSelection)
+        DispatchQueue.global(qos: .userInitiated).async {
+            var localThumbs: [UIImage] = []
+            var count = 0
+            if let doc = PDFDocument(url: sourceURL) {
+                count = doc.pageCount
+                for i in 0..<count {
+                    if let p = doc.page(at: i) {
+                        let img = p.thumbnail(of: CGSize(width: 160, height: 208), for: .cropBox)
+                        localThumbs.append(img)
+                    }
+                }
+            }
+            DispatchQueue.main.async {
+                self.pageCount = count
+                self.thumbnails = localThumbs
+                self.isLoading = false
+            }
+        }
+    }
+}
+//
+//  ContentView.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import SwiftUI
+
+struct RootView: View {
+    var body: some View {
+        NavigationView {
+           WelcomeView()
+        }
+    }
+}
+
+//
+//  LibraryViewModel.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import Foundation
+import Combine
+
+final class LibraryViewModel: ObservableObject {
+    @Published var docs: [Document] = []
+    
+    //Merge state
+    @Published var mergingSource: Document? = nil
+    @Published var errorMessage: String? = nil
+    @Published var isBusy = false
+  
+    private var bag = Set<AnyCancellable>()
+    private var repo: DocumentRepositoryProtocol
+    
+    init(repo: DocumentRepositoryProtocol) {
+        self.repo = repo
+        repo.list()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                self?.docs = $0
+            }
+            .store(in: &bag)
+    }
+    
+    func delete(_ id: UUID) { try? repo.delete(id: id)}
+    func shareURL(_ id: UUID) -> URL? { try? repo.shareURL(for: id)}
+    
+    //MARK: - Merge
+    var isMerging: Bool { mergingSource != nil }
+    
+    func beginMerge(from doc: Document) {
+        mergingSource = doc
+    }
+    
+    func cancelMerge() {
+        mergingSource = nil
+    }
+    
+    func selecTarget(_ target: Document) {
+        guard let source = mergingSource, source.id != target.id else { return }
+        isBusy = true
+        let name = source.name + target.name
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            defer { DispatchQueue.main.async { self.isBusy = false } }
+            do {
+                _ = try repo.merge(source.id, target.id, name: name)
+                DispatchQueue.main.async { [weak self] in
+                    self?.mergingSource = nil
+                    
+                }
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    self?.errorMessage = error.localizedDescription
+                    self?.mergingSource = nil
+                    
+                }
+            }
+        }
+    }
+
+}
+//
+//  LibraryView.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+
+struct LibraryView: View {
+    
+    @StateObject var vm: LibraryViewModel
+    @State private var shareURL: URL?
+    @State private var showShare: Bool = false
+    @State private var showError: Bool = false
+    
+    var body: some View {
+        List {
+            if vm.docs.isEmpty {
+                Section("Пока пусто") {
+                    Text("Создай PDF в Editor")
+                        .foregroundColor(.secondary)
+                }
+            } else {
+                if let src = vm.mergingSource {
+                    Section {
+                        Text("Выберите второй документ для обьединения с \(src.name)")
+                            .font(.subheadline).foregroundColor(.secondary)
+                    }
+                }
+                ForEach(vm.docs) { doc in
+                    row(for:doc)
+                        .disabled(vm.isMerging)
+                        .overlay(
+                            Group {
+                                if vm.isMerging {
+                                    Color.clear
+                                        .contentShape(Rectangle())
+                                        .onTapGesture { vm.selecTarget(doc) }
+                                }
+                            }
+                        )
+                    
+                }
+            }
+        }
+        .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if vm.isMerging {
+                        Button("Отмена") {
+                            vm.cancelMerge()
+                        }
+                    } else {
+                        EmptyView()
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Library")
+        .alert("Ошбика", isPresented: $showError) {
+            Button("Ок") { vm.errorMessage = nil }
+        } message: {
+            Text(vm.errorMessage ?? "Неизвестная ошибка")
+        }
+        .sheet(isPresented: $showShare) {
+            if let url = shareURL {
+                ShareSheet(activityItems: [url])
+            }
+        }
+        .overlay { if vm.isBusy { BusyOverlay(title: "Обьединение...") }}
+    }
+    
+}
+
+private extension LibraryView {
+    func row(for doc: Document) -> some View {
+        NavigationLink(destination: ReaderContainer(document: doc)) {
+            HStack(spacing:12) {
+                //thumbNail
+                if let img = doc.thumbNail {
+                    Image(uiImage: img).resizable().scaledToFill()
+                        .frame(width: 40,height: 52).cornerRadius(6)
+                } else {
+                    Rectangle().fill(.secondary.opacity(0.2)).frame(width: 40,height: 52).cornerRadius(6)
+                }
+                
+                //meta
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(doc.name).font(.headline)
+                        if vm.mergingSource?.id == doc.id {
+                            Text("①").font(.caption)
+                                .padding(.horizontal, 6)
+                                .background(Color.blue.opacity(0.15))
+                                .cornerRadius(4)
+                        }
+                        Text("\(doc.createdAt.formatted(date: .abbreviated, time: .shortened)) • pdf • \(doc.pageCount) стр.")
+                            .foregroundColor(.secondary)
+                            .font(.subheadline)
+                    }
+                    Spacer()
+                }
+            }
+            .contextMenu {
+                Button("Поделиться") {
+                    if let url = vm.shareURL(doc.id) {
+                        shareURL = url
+                        showShare = true
+                    }
+                }
+                Button("Удалить", role: .destructive) {
+                    vm.delete(doc.id)
+                }
+                Button("Обьединить") {
+                    vm.beginMerge(from: doc)
+                }
+            }
+        }
+    }
+}
+
+private extension LibraryItem {
+    func presentShare(_ url: URL) {
+        let av = UIActivityViewController(activityItems: [url], applicationActivities: nil
+        )
+        UIApplication.shared.windows.first?.rootViewController?.present(av, animated: true)
+    }
+}
+//
+//  Welcome.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/21/25.
+//
+
+import SwiftUI
+
+struct WelcomeView: View {
+    @Environment(\.documentRepository) private var repo
+    @Environment(\.pdfService) private var pdf
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("PDF Maker")
+                .font(.largeTitle).bold()
+            Text("Импортируй фото/файлы → конвертируй в PDF → читай, удаляй страницы, делись.")
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+            NavigationLink("Перейти в Editor") {
+                EditorView(vm: EditorViewModel(repo: repo))
+            }
+            .buttonStyle(.borderedProminent)
+            NavigationLink("Перейти в Library") {
+                LibraryView(vm: LibraryViewModel(repo: repo))
+            }
+        }
+        
+        
+    }
+}
+
+
+
+//
+//  EditorViewModel.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import UIKit
+import Combine
+import UniformTypeIdentifiers
+
+final class EditorViewModel: ObservableObject {
+    @Published var pickedImages: [UIImage] = []
+    @Published var importedFileURL: URL?
+    @Published var createdDocument: Document?
+    @Published var isBusy: Bool = false
+    @Published var errorMessage: String?
+
+    private let repo: DocumentRepositoryProtocol
+
+    init(repo: DocumentRepositoryProtocol) {
+        self.repo = repo
+    }
+
+    func createPDF(name: String?) {
+        guard !pickedImages.isEmpty || importedFileURL != nil else { return }
+        isBusy = true
+        let title = (name?.isEmpty == false) ? name : nil
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            do {
+                let doc: Document
+
+                if !self.pickedImages.isEmpty {
+                    doc = try self.repo.createFromImages(self.pickedImages, name: title)
+                } else if let url = self.importedFileURL {
+                    let secured = url.startAccessingSecurityScopedResource()
+                    defer { if secured { url.stopAccessingSecurityScopedResource() } }
+
+                    let contentType = (try? url.resourceValues(forKeys: [.contentTypeKey]).contentType)
+
+                    if contentType == .pdf || url.pathExtension.lowercased() == "pdf" {
+                        doc = try self.repo.importFile(url)
+                    } else if contentType?.conforms(to: .image) == true {
+                        guard let img = FileImageLoader.loadFirstImage(from: url) else {
+                            throw NSError(domain: "EditorVM", code: -2, userInfo: [NSLocalizedDescriptionKey: "Не удалось прочитать изображение"])
+                        }
+                        doc = try self.repo.createFromImages([img], name: title)
+                    } else {
+                        throw NSError(domain: "EditorVM", code: -1, userInfo: [NSLocalizedDescriptionKey: "Неподдерживаемый тип файла"])
+                    }
+                } else {
+                    throw NSError(domain: "EditorVM", code: 0, userInfo: [NSLocalizedDescriptionKey: "Нет данных для импорта"])
+                }
+
+                DispatchQueue.main.async {
+                    self.createdDocument = doc
+                    self.isBusy = false
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.errorMessage = error.localizedDescription
+                    self.isBusy = false
+                }
+            }
+        }
+    }
+}
+//
+//  EditorView.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+import UniformTypeIdentifiers
+
+struct EditorView: View {
+    @StateObject var vm: EditorViewModel
+
+    @State private var name: String = ""
+    @State private var showPhotoPicker: Bool = false
+    @State private var showFilePicker: Bool = false
+    @State private var openReader: Bool = false
+    @State private var showError: Bool = false
+
+    var body: some View {
+        content
+            .navigationTitle("Editor")
+            .sheet(isPresented: $showPhotoPicker) {
+                PhotoPicker(images: $vm.pickedImages)
+            }
+            .sheet(isPresented: $showFilePicker) {
+                FilePicker(supportedTypes: [.pdf, .image], pickedURL: $vm.importedFileURL)
+            }
+            .onChange(of: vm.createdDocument) { doc in
+                openReader = (doc != nil)
+            }
+            .onChange(of: vm.importedFileURL) { url in
+                if let url { name = url.deletingPathExtension().lastPathComponent }
+            }
+            .background(readerLink)
+            .onChange(of: vm.errorMessage) { msg in
+                showError = (msg != nil)
+            }
+            .alert("Ошибка", isPresented: $showError) {
+                Button("Ok", role: .cancel) { vm.errorMessage = nil }
+            } message: { Text(vm.errorMessage ?? "Неизвестная ошибка") }
+            .overlay { if vm.isBusy { BusyOverlay(title: "Создание PDF...") } }
+    }
+
+    private var content: some View {
+        VStack(spacing: 12) {
+            TextField("Название документа", text: $name)
+                .textFieldStyle(.roundedBorder)
+                .disableAutocorrection(true)
+            HStack {
+                Button("Выбрать из фото.") {
+                    showPhotoPicker = true
+                }
+                Button("Импорт из файлов.") {
+                    showFilePicker = true
+                }
+            }
+            if !vm.pickedImages.isEmpty {
+                Text("Выбрано изображений \(vm.pickedImages.count)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else if let url = vm.importedFileURL {
+                Text("Файл: \(url.lastPathComponent)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else {
+                Text("Ничего не выбрано.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+
+            Button("Сконвертировать / Сохранить") {
+                vm.createPDF(name: name.isEmpty ? nil : name)
+                openReader = true
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(vm.pickedImages.isEmpty && vm.importedFileURL == nil)
+            Spacer()
+        }
+    }
+
+    private var readerLink: some View {
+        NavigationLink(isActive: $openReader) {
+            readerDestination
+        } label: {
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var readerDestination: some View {
+        if let doc = vm.createdDocument {
+            ReaderContainer(document: doc)
+        } else {
+            EmptyView()
+        }
+    }
+}
+//
+//  FilePicker.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+import UniformTypeIdentifiers
+
+
+struct FilePicker: UIViewControllerRepresentable {
+    let supportedTypes: [UTType]
+ 
+    @Binding var pickedURL: URL?
+    
+    func makeUIViewController(context: Context) -> some UIViewController {
+        let vc = UIDocumentPickerViewController(forOpeningContentTypes: supportedTypes, asCopy: true)
+        vc.delegate = context.coordinator
+        return vc
+    }
+  
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+  
+    func updateUIViewController(_ uiViewController: UIViewControllerType, context: Context) {
+        
+    }
+  
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let parent: FilePicker
+        init(_ parent: FilePicker) {
+            self.parent = parent
+        }
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            parent.pickedURL = urls.first
+        }
+    }
+    
+}
+//
+//  PhotoPicker.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+import PhotosUI
+
+struct PhotoPicker: UIViewControllerRepresentable {
+   
+    @Binding var images: [UIImage]
+    
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration(photoLibrary: .shared())
+        config.selectionLimit = 0
+        config.filter = .images
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+  
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {
+        
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    final class Coordinator:NSObject,PHPickerViewControllerDelegate{
+        let parent: PhotoPicker
+     
+        init(_ parent: PhotoPicker) {
+            self.parent = parent
+        }
+     
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            parent.images.removeAll()
+            let group = DispatchGroup()
+            
+            for r in results {
+                if r.itemProvider.canLoadObject(ofClass: UIImage.self) {
+                    group.enter()
+                    r.itemProvider.loadObject(ofClass: UIImage.self) { (image, error) in
+                        if let image = image as? UIImage {
+                            self.parent.images.append(image)
+                        }
+                        group.leave()
+                    }
+                }
+            }
+            picker.dismiss(animated: true)
+        }
+        
+    }
+}
+
+
+//
+//  BusyOverlay.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/23/25.
+//
+
+import SwiftUI
+
+struct BusyOverlay: View {
+    var title: String = "Обработка..."
+    var body : some View {
+        ZStack {
+            Color(.black).opacity(0.2).ignoresSafeArea()
+            VStack(spacing: 12) {
+                ProgressView()
+                Text(title).font(.subheadline)
+            }
+            .padding(16)
+            .background(.ultraThinMaterial)
+            .cornerRadius(12)
+        }
+        .transition(.opacity)
+        .animation(.easeInOut,value: UUID())
+    }
+}
+//
+//  ShareSheet.swift
+//  AezakmiTest
+//
+//  Created by Niiaz Khasanov on 10/22/25.
+//
+
+import SwiftUI
+
+struct ShareSheet:UIViewControllerRepresentable {
+    let activityItems: [Any]
+    func makeUIViewController(context: Context) -> some UIViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+    func updateUIViewController(_ uiViewController: UIViewControllerType, context: Context) {
+    
+    }
+}

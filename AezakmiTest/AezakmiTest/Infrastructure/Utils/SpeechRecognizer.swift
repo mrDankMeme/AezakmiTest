@@ -26,22 +26,17 @@ final class SpeechRecognizer: NSObject {
             if status == .authorized {
                 DispatchQueue.main.async { self.beginSession() }
             } else {
-                DispatchQueue.main.async {
-                    self.onError?("Доступ к распознаванию речи не разрешён")
-                }
+                DispatchQueue.main.async { self.onError?("Доступ к распознаванию речи не разрешён") }
             }
         }
     }
 
     func stop() {
         request?.endAudio()
-        if audioEngine.isRunning {
-            audioEngine.stop()
-        }
+        if audioEngine.isRunning { audioEngine.stop() }
         if audioEngine.inputNode.outputFormat(forBus: 0).channelCount > 0 {
             audioEngine.inputNode.removeTap(onBus: 0)
         }
-        // НЕ вызываем cancel — даём таске корректно завершиться.
     }
 
     func cancel() {
@@ -77,10 +72,11 @@ final class SpeechRecognizer: NSObject {
                 }
 
                 if let err = error as NSError? {
-                    // Игнорируем «отменено» при штатной остановке
+                    let code = err.code
                     let msg = err.localizedDescription.lowercased()
-                    if err.domain == "kSFSpeechRecognitionErrorDomain" && err.code == 203 { return }
-                    if msg.contains("canceled") { return }
+                    if code == 203 || msg.contains("canceled") || msg.contains("cancelled") {
+                        return
+                    }
                     self.onError?(err.localizedDescription)
                     self.cleanup()
                     return
@@ -98,9 +94,7 @@ final class SpeechRecognizer: NSObject {
     }
 
     private func cleanup() {
-        if audioEngine.isRunning {
-            audioEngine.stop()
-        }
+        if audioEngine.isRunning { audioEngine.stop() }
         if audioEngine.inputNode.outputFormat(forBus: 0).channelCount > 0 {
             audioEngine.inputNode.removeTap(onBus: 0)
         }
