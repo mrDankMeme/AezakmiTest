@@ -22,18 +22,18 @@ public class FileStore: FileStoreProtocol {
 
     public func uniquePDFURL(suggestedName: String?) throws -> URL {
         let baseRaw = (suggestedName?.isEmpty == false ? suggestedName! : "Document")
-        // 1) убираем "гирлянду" старых таймстемпов из конца имени
+        
         let baseNoDates = stripTrailingTimestamps(from: baseRaw)
-        // 2) санитайзим (никаких слэшей, двоеточий и т.п.)
+        
         let cleanBase  = sanitize(baseNoDates.replacingOccurrences(of: " ", with: "_"))
-        // 3) текущий безопасный timestamp
+        
         let stamp = safeTimestamp()
 
-        // Сначала собираем кандидата
+        
         var fileName = "\(cleanBase)_\(stamp).pdf"
-        // 4) укоротим, если слишком длинный (APFS: 255 байт на компонент пути; оставим запас)
+        
         if fileName.utf8.count > maxFileNameBytes {
-            // сколько байт можно выделить под "базу"
+            
             let reserved = ("_\(stamp).pdf").utf8.count
             let allowedForBase = max(1, maxFileNameBytes - reserved)
             let trimmedBase = trimToUTF8Limit(cleanBase, limit: allowedForBase)
@@ -67,7 +67,7 @@ public class FileStore: FileStoreProtocol {
         return df.string(from: Date())
     }
 
-    /// Разрешаем только [A-Za-z0-9._-], остальное -> "_"
+    
     private func sanitize(_ s: String) -> String {
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
         var out = ""
@@ -79,16 +79,12 @@ public class FileStore: FileStoreProtocol {
         return out.isEmpty ? "Document" : out
     }
 
-    /// Срезаем в конце "_YYYY-MM-DD_HH-mm-ss" и/или ISO-подобные "_YYYY-MM-DDTHH/mm/ssZ" — сразу "гирляндой".
+    
     private func stripTrailingTimestamps(from name: String) -> String {
-        // Охватываем и старые ISO-варианты с 'T' и слэшами, и новый безопасный формат
-        // Примеры:
-        // _2025-10-23T14/42/54Z
-        // _2025-10-23T15/10/12Z
-        // _2025-10-23_16-18-44
+        
         let patterns = [
-            #"(_\d{4}-\d{2}-\d{2}T\d{2}/\d{2}/\d{2}Z)+"#,        // ISO с T и / и Z
-            #"(_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})+"#          // наш безопасный формат
+            #"(_\d{4}-\d{2}-\d{2}T\d{2}/\d{2}/\d{2}Z)+"#,
+            #"(_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})+"#
         ]
 
         var result = name
@@ -103,7 +99,7 @@ public class FileStore: FileStoreProtocol {
         return result
     }
 
-    /// Обрезает строку по границе символов так, чтобы байтов в UTF-8 было не больше limit.
+    
     private func trimToUTF8Limit(_ s: String, limit: Int) -> String {
         guard s.utf8.count > limit else { return s }
         var bytes = 0
@@ -118,6 +114,6 @@ public class FileStore: FileStoreProtocol {
         return out.isEmpty ? "D" : out
     }
 
-    /// Оставляем запас от 255. 240 байт на имя файла достаточно, чтобы точно не упереться в лимит.
+     
     private var maxFileNameBytes: Int { 240 }
 }

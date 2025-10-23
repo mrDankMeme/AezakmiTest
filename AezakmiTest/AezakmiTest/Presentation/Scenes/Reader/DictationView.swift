@@ -87,12 +87,12 @@ struct DictationView: View {
     }
 
     private func stop() {
-        speech.stop()        // мягкая остановка без cancel
+        speech.stop()
         isRunning = false
     }
 
     private func cancel() {
-        speech.cancel()      // реальная отмена (при закрытии экрана)
+        speech.cancel()      
         isRunning = false
     }
 }

@@ -44,7 +44,6 @@ final class LibraryViewModel: ObservableObject {
         mergingSource = nil
     }
     
-    // LibraryViewModel.swift
     func selecTarget(_ target: Document) {
         guard let source = mergingSource, source.id != target.id else { return }
         isBusy = true

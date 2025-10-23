@@ -66,7 +66,6 @@ final class DocumentRepositoryImpl: DocumentRepositoryProtocol {
         return try persist(url: out, suggestedName: name ?? "Merged")
     }
 
-    // Новый метод: объединение выбранных страниц
     func mergePages(_ pagesByDoc: [URL: [Int]], name: String?) throws -> Document {
         let out = try pdf.mergePages(pagesByDoc, suggestedName: name)
         return try persist(url: out, suggestedName: name ?? "MergedPages")
