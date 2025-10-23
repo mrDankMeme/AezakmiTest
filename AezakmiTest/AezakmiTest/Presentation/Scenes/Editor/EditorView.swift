@@ -68,7 +68,7 @@ struct EditorView: View {
                     .foregroundColor(.secondary)
             }
             
-            Button("Сконвертировать / Сохранить") {
+            Button("Сохранить") {
                 vm.createPDF(name: name.isEmpty ? nil : name)
                 openReader = true
             }
