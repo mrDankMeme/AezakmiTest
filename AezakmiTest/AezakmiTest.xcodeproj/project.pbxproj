@@ -37,6 +37,8 @@
 		A35FF2E52EAAA4240000E890 /* PageSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2E42EAAA4240000E890 /* PageSelectionView.swift */; };
 		A35FF2E92EAAA7660000E890 /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2E82EAAA7660000E890 /* SpeechRecognizer.swift */; };
 		A35FF2EC2EAAA7D60000E890 /* DictationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2EB2EAAA7D60000E890 /* DictationView.swift */; };
+		A35FF2F12EAAB22E0000E890 /* SpeechServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2F02EAAB22E0000E890 /* SpeechServiceProtocol.swift */; };
+		A35FF2F32EAAB25B0000E890 /* SpeechServiceKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35FF2F22EAAB25B0000E890 /* SpeechServiceKey.swift */; };
 		A39406B02EA7894300ED4787 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A39406AB2EA7894300ED4787 /* Assets.xcassets */; };
 		A39406B22EA7894300ED4787 /* AezakmiTestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39406AA2EA7894300ED4787 /* AezakmiTestApp.swift */; };
 		A39406BB2EA789CD00ED4787 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39406B82EA789CD00ED4787 /* RootView.swift */; };
@@ -74,6 +76,8 @@
 		A35FF2E42EAAA4240000E890 /* PageSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageSelectionView.swift; sourceTree = "<group>"; };
 		A35FF2E82EAAA7660000E890 /* SpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognizer.swift; sourceTree = "<group>"; };
 		A35FF2EB2EAAA7D60000E890 /* DictationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationView.swift; sourceTree = "<group>"; };
+		A35FF2F02EAAB22E0000E890 /* SpeechServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechServiceProtocol.swift; sourceTree = "<group>"; };
+		A35FF2F22EAAB25B0000E890 /* SpeechServiceKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechServiceKey.swift; sourceTree = "<group>"; };
 		A39406922EA788FD00ED4787 /* AezakmiTest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AezakmiTest.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A39406AA2EA7894300ED4787 /* AezakmiTestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AezakmiTestApp.swift; sourceTree = "<group>"; };
 		A39406AB2EA7894300ED4787 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -122,6 +126,7 @@
 		A35FF2AF2EA7E0DF0000E890 /* Infrastructure */ = {
 			isa = PBXGroup;
 			children = (
+				A35FF2EF2EAAB2250000E890 /* Protocols */,
 				A35FF2E12EAA75620000E890 /* Utils */,
 				A35FF2BD2EA7F5590000E890 /* Repositories */,
 				A35FF2B82EA7E4FF0000E890 /* PDF */,
@@ -175,6 +180,7 @@
 		A35FF2C32EA8F3B50000E890 /* EnviromentKey */ = {
 			isa = PBXGroup;
 			children = (
+				A35FF2F22EAAB25B0000E890 /* SpeechServiceKey.swift */,
 				A35FF2D22EA90FDE0000E890 /* PDFServiceKey.swift */,
 				A35FF2C42EA8F3BF0000E890 /* DocumentRepositoryKey.swift */,
 			);
@@ -197,6 +203,14 @@
 				A35FF2E22EAA756B0000E890 /* FileImageLoader.swift */,
 			);
 			path = Utils;
+			sourceTree = "<group>";
+		};
+		A35FF2EF2EAAB2250000E890 /* Protocols */ = {
+			isa = PBXGroup;
+			children = (
+				A35FF2F02EAAB22E0000E890 /* SpeechServiceProtocol.swift */,
+			);
+			path = Protocols;
 			sourceTree = "<group>";
 		};
 		A39406892EA788FD00ED4787 = {
@@ -390,6 +404,7 @@
 				A35FF2B72EA7E32A0000E890 /* FileStore.swift in Sources */,
 				A35FF2BA2EA7E5090000E890 /* PDFService.swift in Sources */,
 				A35FF2AE2EA7DD3A0000E890 /* Document.swift in Sources */,
+				A35FF2F12EAAB22E0000E890 /* SpeechServiceProtocol.swift in Sources */,
 				A35FF2CB2EA906AE0000E890 /* EditorView.swift in Sources */,
 				A35FF2A62EA7D7790000E890 /* CoreDataStack.swift in Sources */,
 				A39406BB2EA789CD00ED4787 /* RootView.swift in Sources */,
@@ -400,6 +415,7 @@
 				A39406C42EA78C3F00ED4787 /* Welcome.swift in Sources */,
 				A35FF2EC2EAAA7D60000E890 /* DictationView.swift in Sources */,
 				A35FF2C72EA8F5B00000E890 /* LibraryView.swift in Sources */,
+				A35FF2F32EAAB25B0000E890 /* SpeechServiceKey.swift in Sources */,
 				A35FF2A92EA7DCC20000E890 /* DocumentEntity.swift in Sources */,
 				A35FF2BC2EA7F3AF0000E890 /* DocumentRepositoryProtocol.swift in Sources */,
 				A35FF2AB2EA7DCDD0000E890 /* DocumentEntity+CoreDataProperties.swift in Sources */,

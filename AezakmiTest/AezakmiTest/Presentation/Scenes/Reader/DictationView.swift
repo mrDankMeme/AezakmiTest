@@ -10,14 +10,14 @@ import SwiftUI
 
 struct DictationView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.speechService) private var speech: SpeechServiceProtocol
 
-    @State private var text: String = ""
+    @State private var text = ""
     @State private var isRunning = false
     @State private var showError = false
     @State private var errorMessage = ""
 
     let onCommit: (String) -> Void
-    private let speech = SpeechRecognizer()
 
     var body: some View {
         NavigationView {
@@ -27,13 +27,13 @@ struct DictationView: View {
                     .padding()
                     .background(Color(UIColor.secondarySystemBackground))
                     .cornerRadius(16)
-                    .disabled(isRunning == false)
+                    .disabled(!isRunning)
 
                 Spacer()
 
                 HStack(spacing: 20) {
                     Button(isRunning ? "Стоп" : "Старт") {
-                        if isRunning { stop() } else { start() }
+                        isRunning ? stop() : start()
                     }
                     .buttonStyle(.borderedProminent)
 
@@ -71,18 +71,15 @@ struct DictationView: View {
     }
 
     private func start() {
-        speech.onText = { new in
-            text = new
-        }
-        speech.onError = { msg in
-            errorMessage = msg
-            showError = true
-            isRunning = false
-        }
-        speech.onFinish = {
-            isRunning = false
-        }
-        speech.start()
+        speech.start(
+            onText: { new in text = new },
+            onError: { msg in
+                errorMessage = msg
+                showError = true
+                isRunning = false
+            },
+            onFinish: { isRunning = false }
+        )
         isRunning = true
     }
 
@@ -92,7 +89,7 @@ struct DictationView: View {
     }
 
     private func cancel() {
-        speech.cancel()      
+        speech.cancel()
         isRunning = false
     }
 }
